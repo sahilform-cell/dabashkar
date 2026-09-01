@@ -10,7 +10,7 @@
     <meta name="apple-mobile-web-app-title" content="ڕاپۆرتی دابەشکار">
     <meta name="theme-color" content="#0b2997">
     
-    <!-- لێرەدا بەستەرەکە گۆڕدرا بۆ فایلێکی سەربخۆ -->
+    <!-- بەستەری مانای ئەپ -->
     <link rel="manifest" href="manifest.json">
 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -768,6 +768,14 @@
             <button class="btn btn-secondary" style="width: 100%; margin-top: 20px; justify-content: center;" onclick="closeAllModals()">داخستن</button>
         </div>
     </div>
+
+    <!-- تومارکردنی Service Worker بۆ ئەوەی کرۆم وەک ئەپ بیناسێت -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('Service Worker Registered Successfully'));
+        }
+    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
