@@ -5,12 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>سیستمی ڕاپۆرت و سایەق</title>
     
+    <!-- PWA Settings -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="ڕاپۆرتی دابەشکار">
     <meta name="theme-color" content="#0b2997">
-    
-    <!-- بەستەری مانای ئەپ -->
     <link rel="manifest" href="manifest.json">
 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -30,121 +29,64 @@
             width: 100%;
             background: #e7e9f5;
             color: #333;
+            padding-bottom: 80px;
         }
 
-        .sidebar {
+        /* مێنوی خوارەوە (Bottom Navigation Bar) */
+        .bottom-nav {
             position: fixed;
-            top: 0;
-            right: 0;
-            width: 78px;
-            height: 100%;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 65px;
             background: #ffffff;
-            padding: 6px 14px;
-            box-shadow: -5px 0 30px rgba(0, 0, 0, 0.1);
-            transition: all 0.4s ease;
-            overflow-x: hidden;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
             z-index: 1000;
+            border-top: 1px solid #eaeaea;
         }
 
-        .sidebar:hover, .sidebar.active {
-            width: 250px;
-        }
-
-        .sidebar .logo_content .logo {
+        .bottom-nav-item {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            width: 100%;
-            height: 50px;
-            margin-top: 10px;
-            color: #0b2997;
+            justify-content: center;
             text-decoration: none;
-        }
-
-        .sidebar .logo_content .logo i {
-            font-size: 28px;
-            min-width: 50px;
-            text-align: center;
-        }
-
-        .sidebar .logo_content .logo .logo_name {
-            font-size: 18px;
-            font-weight: 600;
-            opacity: 0;
-            transition: all 0.4s ease;
-            white-space: nowrap;
-        }
-
-        .sidebar:hover .logo_content .logo .logo_name,
-        .sidebar.active .logo_content .logo .logo_name {
-            opacity: 1;
-        }
-
-        .sidebar ul {
-            margin-top: 20px;
-            list-style: none;
-        }
-
-        .sidebar ul li {
-            position: relative;
-            height: 50px;
-            width: 100%;
-            margin: 10px 0;
-            line-height: 50px;
-        }
-
-        .sidebar ul li a {
-            display: flex;
-            align-items: center;
-            text-decoration: none;
-            border-radius: 12px;
-            transition: all 0.3s ease;
             color: #707070;
-            white-space: nowrap;
-            width: 100%;
+            flex: 1;
             height: 100%;
+            transition: all 0.3s ease;
             cursor: pointer;
+            gap: 3px;
         }
 
-        .sidebar ul li a:hover, .sidebar ul li.active-menu a {
-            background: #0b2997;
-            color: #fff;
-        }
-
-        .sidebar ul li a:hover i, .sidebar ul li.active-menu a i,
-        .sidebar ul li a:hover .link_name, .sidebar ul li.active-menu a .link_name {
-            color: #fff;
-        }
-
-        .sidebar ul li i {
-            height: 50px;
-            min-width: 50px;
-            line-height: 50px;
-            text-align: center;
+        .bottom-nav-item i {
             font-size: 18px;
-            color: #707070;
             transition: all 0.3s ease;
         }
 
-        .sidebar ul li .link_name {
-            opacity: 0;
-            pointer-events: none;
-            transition: all 0.4s ease;
-            font-size: 14px;
+        .bottom-nav-item span {
+            font-size: 11px;
             font-weight: 500;
-            color: #707070;
         }
 
-        .sidebar:hover ul li .link_name,
-        .sidebar.active ul li .link_name {
-            opacity: 1;
-            pointer-events: auto;
+        .bottom-nav-item:hover, .bottom-nav-item.active-menu {
+            color: #0b2997;
+            background: #f0f3ff;
         }
 
+        .bottom-nav-item.active-menu i {
+            transform: translateY(-2px);
+        }
+
+        /* ناوەڕۆکی سەرەکی - پڕکردنەوەی شاشە بە تەواوی */
         .main-content {
-            margin-right: 90px;
-            padding: 20px;
-            transition: all 0.4s ease;
-            width: calc(100% - 90px);
+            padding: 20px 30px;
+            max-width: 100% !important;
+            margin: 0 auto;
+            width: 100%;
         }
 
         .section-view {
@@ -157,8 +99,9 @@
 
         .dashboard-container {
             width: 100%;
+            max-width: 100% !important;
             background: #fff;
-            padding: 20px;
+            padding: 25px;
             border-radius: 14px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
             border: 1px solid #eaeaea;
@@ -269,9 +212,10 @@
 
         .cards-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
             padding: 5px 0;
+            width: 100%;
         }
 
         .trip-card {
@@ -500,7 +444,7 @@
                 border: none !important;
                 box-shadow: none !important;
             }
-            .header-actions, .sidebar, .dashboard-header button, .report-filters {
+            .header-actions, .bottom-nav, .dashboard-header button, .report-filters {
                 display: none !important;
             }
 
@@ -563,61 +507,11 @@
                 border: 1px solid #bbb !important;
             }
         }
-
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 60px;
-                padding: 6px 8px;
-            }
-            .sidebar:hover, .sidebar.active {
-                width: 220px;
-            }
-            .main-content {
-                margin-right: 70px;
-                width: calc(100% - 70px);
-                padding: 10px;
-            }
-            .dashboard-container {
-                padding: 15px;
-            }
-            .cards-grid {
-                grid-template-columns: 1fr;
-            }
-        }
     </style>
 </head>
 <body>
 
-    <div class="sidebar" id="sidebar">
-        <div class="logo_content">
-            <a href="#" class="logo">
-                <i class="fa-solid fa-file-lines"></i>
-                <div class="logo_name">سیستمی ڕاپۆرت و سایەق</div>
-            </a>
-        </div>
-        
-        <ul class="nav_list">
-            <li class="active-menu" id="menu-dashboard">
-                <a onclick="switchView('dashboard')">
-                    <i class="fa-solid fa-chart-pie"></i>
-                    <span class="link_name">داشبۆرد</span>
-                </a>
-            </li>
-            <li id="menu-drivers">
-                <a onclick="switchView('drivers')">
-                    <i class="fa-solid fa-id-card"></i>
-                    <span class="link_name">زانیاری سایەقەکان</span>
-                </a>
-            </li>
-            <li id="menu-reports">
-                <a onclick="switchView('reports')">
-                    <i class="fa-solid fa-table-list"></i>
-                    <span class="link_name">فۆڕمی ڕاپۆرتەکان</span>
-                </a>
-            </li>
-        </ul>
-    </div>
-
+    <!-- ناوەڕۆکی سەرەکی -->
     <div class="main-content">
         
         <div id="dashboard-view" class="section-view active-view">
@@ -737,6 +631,22 @@
 
     </div>
 
+    <!-- مێنوی خوارەوە (Bottom Navigation Bar) -->
+    <div class="bottom-nav">
+        <div class="bottom-nav-item active-menu" id="menu-dashboard" onclick="switchView('dashboard')">
+            <i class="fa-solid fa-chart-pie"></i>
+            <span>داشبۆرد</span>
+        </div>
+        <div class="bottom-nav-item" id="menu-drivers" onclick="switchView('drivers')">
+            <i class="fa-solid fa-id-card"></i>
+            <span>سایەقەکان</span>
+        </div>
+        <div class="bottom-nav-item" id="menu-reports" onclick="switchView('reports')">
+            <i class="fa-solid fa-table-list"></i>
+            <span>ڕاپۆرتەکان</span>
+        </div>
+    </div>
+
     <div id="detailsModal" class="modal">
         <div class="modal-content" style="max-width: 480px;">
             <h3 style="margin-bottom: 15px; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; color: #0b2997;"><i class="fa-solid fa-circle-info"></i> وردەکاری تەواوی ڕاپۆرت</h3>
@@ -769,17 +679,18 @@
         </div>
     </div>
 
-    <!-- تومارکردنی Service Worker بۆ ئەوەی کرۆم وەک ئەپ بیناسێت -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
-                .then(() => console.log('Service Worker Registered Successfully'));
-        }
-    </script>
-
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker registered!'))
+                    .catch(err => console.log('Service Worker registration failed: ', err));
+            });
+        }
+
         const SUPABASE_URL = "https://rivwvzdjfotkjhpuwuaf.supabase.co";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJpdnd2emRqZm90a2pocHV3dWFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MzgzNDAsImV4cCI6MjEwMDUxNDM0MH0.kYBINRIMeKZaTyg46gM7qBRct0H5kktd2ZJiSyIp2ag";
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -804,7 +715,7 @@
 
         function switchView(viewName) {
             document.querySelectorAll('.section-view').forEach(el => el.classList.remove('active-view'));
-            document.querySelectorAll('.sidebar ul li').forEach(el => el.classList.remove('active-menu'));
+            document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active-menu'));
 
             if (viewName === 'dashboard') {
                 document.getElementById('dashboard-view').classList.add('active-view');
