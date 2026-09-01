@@ -715,7 +715,7 @@
                     </div>
                     <div class="summary-card">
                         <span>کۆی گشتی کات</span>
-                        <span id="sum-total-time">0 کاتژمێر</span>
+                        <span id="sum-total-time">0 ک</span>
                     </div>
                 </div>
 
@@ -948,7 +948,7 @@
             if (diffMins === 0) return '-';
             let h = Math.floor(diffMins / 60);
             let m = diffMins % 60;
-            return `${h} کاتژمێر و ${m} خولەک`;
+            return `${h} ک و ${m} خ`;
         }
 
         function renderReportTable(dataList) {
@@ -961,7 +961,7 @@
                 document.getElementById('sum-weight').innerText = 0;
                 document.getElementById('sum-pieces').innerText = 0;
                 document.getElementById('sum-money').innerText = 0;
-                document.getElementById('sum-total-time').innerText = "0 کاتژمێر";
+                document.getElementById('sum-total-time').innerText = "0 ک";
                 return;
             }
 
@@ -1023,7 +1023,7 @@
             document.getElementById('sum-weight').innerText = totalWeight.toLocaleString();
             document.getElementById('sum-pieces').innerText = totalPieces.toLocaleString();
             document.getElementById('sum-money').innerText = totalMoney.toLocaleString();
-            document.getElementById('sum-total-time').innerText = `${totalH} کاتژمێر و ${totalM} خولەک`;
+            document.getElementById('sum-total-time').innerText = `${totalH} ک و ${totalM} خ`;
         }
 
         function toggleEditMode() {
@@ -1042,14 +1042,12 @@
         async function updateField(element, id, fieldName) {
             let newValue = element.innerText.trim();
             
-            // نوێکردنەوە لە لیستی لۆکاڵی
             const item = allRecordsData.find(i => String(i.id) === String(id));
             if (item) {
                 item[fieldName] = newValue;
                 localStorage.setItem('cached_delivery_records', JSON.stringify(allRecordsData));
             }
 
-            // نوێکردنەوە لە پایەبەییس (Supabase)
             const { error } = await supabaseClient
                 .from('delivery_records')
                 .update({ [fieldName]: newValue })
