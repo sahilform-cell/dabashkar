@@ -81,7 +81,7 @@
             transform: translateY(-2px);
         }
 
-        /* ناوەڕۆکی سەرەکی - پڕکردنەوەی شاشە بە تەواوی */
+        /* ناوەڕۆکی سەرەکی */
         .main-content {
             padding: 20px 30px;
             max-width: 100% !important;
@@ -162,6 +162,8 @@
         .btn-warning:hover { background-color: #b45309; }
         .btn-info { background-color: #0284c7; color: white; }
         .btn-info:hover { background-color: #0369a1; }
+        .btn-danger { background-color: #dc2626; color: white; }
+        .btn-danger:hover { background-color: #b91c1c; }
         .btn-edit-mode { background-color: #7c3aed; color: white; }
         .btn-edit-mode:hover { background-color: #6d28d9; }
         .btn-edit-active { background-color: #dc2626 !important; }
@@ -178,7 +180,7 @@
             width: 100%;
         }
 
-        input:focus {
+        input:focus, select:focus {
             border-color: #0b2997;
             background: #fff;
             box-shadow: 0 0 0 3px rgba(11, 41, 151, 0.1);
@@ -378,6 +380,19 @@
             border: 1px solid #eaeaea;
         }
 
+        .form-group {
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #4b5563;
+        }
+
         .details-row {
             display: flex;
             justify-content: space-between;
@@ -533,12 +548,33 @@
             </div>
         </div>
 
+        <!-- بەشی زانیاری سایەقەکان و بەکارهێنەران -->
         <div id="drivers-view" class="section-view">
             <div class="dashboard-container">
                 <div class="dashboard-header">
-                    <h2><i class="fa-solid fa-id-card" style="color: #0b2997;"></i> زانیاری سایەقەکان</h2>
+                    <h2><i class="fa-solid fa-id-card" style="color: #0b2997;"></i> زانیاری سایەقەکان و بەکارهێنەران</h2>
+                    <div class="header-actions">
+                        <input type="text" id="users-search" placeholder="گەڕان بەدوای ناو یان پیشە..." oninput="filterUsersTable()" style="max-width: 180px;">
+                        <button class="btn btn-edit-mode" id="users-edit-mode-btn" onclick="toggleUsersEditMode()"><i class="fa-solid fa-pen-to-square"></i> چاککردنی یوسەرەکان</button>
+                        <button class="btn btn-success" onclick="openNewUserModal()"><i class="fa-solid fa-user-plus"></i> یوسەری نوێ</button>
+                    </div>
                 </div>
-                <p style="font-size: 14px; color: #666;">ئەم بەشە تایبەتە بە لیستی سایەقەکان و زانیارییەکانیان.</p>
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>کۆد (ID)</th>
+                                <th>ناوی بەکارهێنەر (Username)</th>
+                                <th>پاسۆڕد (Password)</th>
+                                <th>پیشە (Profession)</th>
+                                <th id="users-action-th" style="display: none;">کردارەکان</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body">
+                            <tr><td colspan="5" style="text-align: center; color: #777;">بارکردنی داتاکان...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -647,6 +683,38 @@
         </div>
     </div>
 
+    <!-- ویندۆی یوسەری نوێ (New User Modal) -->
+    <div id="newUserModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <h3 style="margin-bottom: 15px; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; color: #0b2997;"><i class="fa-solid fa-user-plus"></i> زیادکردنی بەکارهێنەری نوێ</h3>
+            
+            <div class="form-group">
+                <label>ناوی بەکارهێنەر (Username)</label>
+                <input type="text" id="new-username" placeholder="ناوی بەکارهێنەر بنووسە...">
+            </div>
+
+            <div class="form-group">
+                <label>پیشە (Profession)</label>
+                <select id="new-profession-select">
+                    <option value="">هێنانی پیشەکان...</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>پاسۆڕد (Password)</label>
+                <div style="position: relative; display: flex; align-items: center;">
+                    <input type="password" id="new-password" placeholder="پاسۆڕد بنووسە..." style="padding-left: 40px;">
+                    <i class="fa-solid fa-eye" id="togglePasswordBtn" onclick="togglePasswordVisibility()" style="position: absolute; left: 12px; cursor: pointer; color: #666;"></i>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-success" style="flex: 1; justify-content: center;" onclick="saveNewUser()"><i class="fa-solid fa-check"></i> تۆمار</button>
+                <button class="btn btn-secondary" style="flex: 1; justify-content: center;" onclick="closeAllModals()"><i class="fa-solid fa-arrow-right"></i> گەڕانەوە</button>
+            </div>
+        </div>
+    </div>
+
     <div id="detailsModal" class="modal">
         <div class="modal-content" style="max-width: 480px;">
             <h3 style="margin-bottom: 15px; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; color: #0b2997;"><i class="fa-solid fa-circle-info"></i> وردەکاری تەواوی ڕاپۆرت</h3>
@@ -696,7 +764,9 @@
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let allRecordsData = [];
+        let allUsersData = [];
         let isEditMode = false;
+        let isUsersEditMode = false; // دۆخی چاککردنی یوسەرەکان
 
         window.onload = function() {
             const today = new Date();
@@ -711,6 +781,8 @@
 
             loadFromLocalStorageAndServer();
             setupRealtimeSubscription();
+            setupUsersRealtimeSubscription();
+            loadUsersData();
         }
 
         function switchView(viewName) {
@@ -723,11 +795,197 @@
             } else if (viewName === 'drivers') {
                 document.getElementById('drivers-view').classList.add('active-view');
                 document.getElementById('menu-drivers').classList.add('active-menu');
+                loadUsersData(); 
             } else if (viewName === 'reports') {
                 document.getElementById('reports-view').classList.add('active-view');
                 document.getElementById('menu-reports').classList.add('active-menu');
                 applyReportFilters();
             }
+        }
+
+        // شاردنەوە و نیشاندانی پاسۆڕد لە کاتی نووسیندا
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('new-password');
+            const toggleBtn = document.getElementById('togglePasswordBtn');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleBtn.classList.remove('fa-eye');
+                toggleBtn.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleBtn.classList.remove('fa-eye-slash');
+                toggleBtn.classList.add('fa-eye');
+            }
+        }
+
+        // کردنەوەی پەنجەرەی یوسەری نوێ و هێنانی پیشەکان لە سەببەیس
+        async function openNewUserModal() {
+            document.getElementById('new-username').value = '';
+            document.getElementById('new-password').value = '';
+            document.getElementById('new-password').type = 'password';
+            document.getElementById('togglePasswordBtn').className = 'fa-solid fa-eye';
+            
+            const selectDropdown = document.getElementById('new-profession-select');
+            selectDropdown.innerHTML = '<option value="">بارکردنی پیشەکان...</option>';
+            document.getElementById('newUserModal').style.display = 'flex';
+
+            const { data, error } = await supabaseClient
+                .from('professions')
+                .select('*');
+
+            if (error) {
+                console.error("هەڵە لە هێنانی پیشەکان: ", error.message);
+                selectDropdown.innerHTML = '<option value="">هەڵە لە هێنانی پیشەکان</option>';
+                return;
+            }
+
+            selectDropdown.innerHTML = '<option value="">پیشە هەڵبژێرە...</option>';
+            if (data && data.length > 0) {
+                data.forEach(item => {
+                    let profName = item.name || item.profession || item.title || Object.values(item)[1];
+                    selectDropdown.innerHTML += `<option value="${profName}">${profName}</option>`;
+                });
+            } else {
+                selectDropdown.innerHTML = '<option value="">هیچ پیشەیەک نەدۆزراوەتەوە</option>';
+            }
+        }
+
+        // پاشەکەوتکردنی یوسەری نوێ بۆ سەببەیس (تەیبڵی users)
+        async function saveNewUser() {
+            const username = document.getElementById('new-username').value.trim();
+            const profession = document.getElementById('new-profession-select').value;
+            const password = document.getElementById('new-password').value.trim();
+
+            if (!username || !profession || !password) {
+                alert("تکایە هەموو خانەکان پڕبکەرەوە!");
+                return;
+            }
+
+            const { error } = await supabaseClient
+                .from('users')
+                .insert([{ username: username, profession: profession, password: password }]);
+
+            if (error) {
+                console.error("هەڵە لە تۆمارکردنی بەکارهێنەر: ", error.message);
+                alert("هەڵە ڕوویدا لە تۆمارکردنی یوسەری نوێ!");
+                return;
+            }
+
+            alert("بەکارهێنەری نوێ بە سەرکەوتوویی تۆمارکرا!");
+            closeAllModals();
+            loadUsersData();
+        }
+
+        async function loadUsersData() {
+            const tbody = document.getElementById('users-table-body');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">بارکردنی داتاکان...</td></tr>';
+
+            const { data, error } = await supabaseClient
+                .from('users')
+                .select('*')
+                .order('id', { ascending: true });
+
+            if (error) {
+                console.error("هەڵە لە هێنانی داتای بەکارهێنەران: ", error.message);
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">هەڵە ڕوویدا لە هێنانی داتا.</td></tr>';
+                return;
+            }
+
+            if (data) {
+                allUsersData = data;
+                renderUsersTable(data);
+            }
+        }
+
+        function renderUsersTable(dataList) {
+            const tbody = document.getElementById('users-table-body');
+            tbody.innerHTML = '';
+            const actionTh = document.getElementById('users-action-th');
+            actionTh.style.display = isUsersEditMode ? '' : 'none';
+
+            if (!dataList || dataList.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="${isUsersEditMode ? 5 : 4}" style="text-align: center; color: #777;">هیچ داتایەک نەدۆزراوەتەوە.</td></tr>`;
+                return;
+            }
+
+            dataList.forEach(user => {
+                let actionTd = '';
+                if (isUsersEditMode) {
+                    actionTd = `<td><button class="btn btn-danger" style="padding: 4px 10px; font-size: 11px;" onclick="deleteUser('${user.id}')"><i class="fa-solid fa-trash"></i> سڕینەوە</button></td>`;
+                }
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${user.id}</td>
+                        <td contenteditable="${isUsersEditMode}" class="${isUsersEditMode ? 'editable-cell' : ''}" onblur="updateUserField(this, '${user.id}', 'username')" style="font-weight: 600; color: #0b2997;">${user.username || '-'}</td>
+                        <td contenteditable="${isUsersEditMode}" class="${isUsersEditMode ? 'editable-cell' : ''}" onblur="updateUserField(this, '${user.id}', 'password')"><code style="background: #fef3c7; color: #d97706; padding: 2px 8px; border-radius: 4px; font-weight: bold; letter-spacing: 2px;">${user.password || '----'}</code></td>
+                        <td contenteditable="${isUsersEditMode}" class="${isUsersEditMode ? 'editable-cell' : ''}" onblur="updateUserField(this, '${user.id}', 'profession')"><span style="background: #f0f3ff; color: #0b2997; padding: 3px 8px; border-radius: 6px; font-size: 12px;">${user.profession || 'نادیار'}</span></td>
+                        ${actionTd}
+                    </tr>
+                `;
+            });
+        }
+
+        // کۆنترۆڵکردنی دۆخی چاککردنی یوسەرەکان (Edit Mode)
+        function toggleUsersEditMode() {
+            isUsersEditMode = !isUsersEditMode;
+            const btn = document.getElementById('users-edit-mode-btn');
+            if (isUsersEditMode) {
+                btn.classList.add('btn-edit-active');
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> کۆتایی چاککردن';
+            } else {
+                btn.classList.remove('btn-edit-active');
+                btn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> چاککردنی یوسەرەکان';
+            }
+            renderUsersTable(allUsersData);
+        }
+
+        // نوێکردنەوەی خانەیەک بۆ یوسەر لە سەببەیس
+        async function updateUserField(element, id, fieldName) {
+            let newValue = element.innerText.trim();
+            const item = allUsersData.find(i => String(i.id) === String(id));
+            if (item) {
+                item[fieldName] = newValue;
+            }
+
+            const { error } = await supabaseClient
+                .from('users')
+                .update({ [fieldName]: newValue })
+                .eq('id', id);
+
+            if (error) {
+                console.error("هەڵە لە نوێکردنەوەی یوسەر:", error.message);
+                alert("هەڵە ڕوویدا لە نوێکردنەوەی داتا!");
+            }
+        }
+
+        // سڕینەوەی یوسەر لە سەببەیس
+        async function deleteUser(id) {
+            if (!confirm("ئایا دڵنیای لە سڕینەوەی ئەم بەکارهێنەرە؟")) return;
+
+            const { error } = await supabaseClient
+                .from('users')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                console.error("هەڵە لە سڕینەوەی یوسەر:", error.message);
+                alert("هەڵە ڕوویدا لە سڕینەوەی بەکارهێنەر!");
+                return;
+            }
+
+            alert("بەکارهێنەر بە سەرکەوتوویی سڕایەوە!");
+            loadUsersData();
+        }
+
+        function filterUsersTable() {
+            const query = document.getElementById('users-search').value.toLowerCase().trim();
+            const filtered = allUsersData.filter(user => {
+                const username = (user.username || '').toLowerCase();
+                const profession = (user.profession || '').toLowerCase();
+                return username.includes(query) || profession.includes(query);
+            });
+            renderUsersTable(filtered);
         }
 
         function loadFromLocalStorageAndServer() {
@@ -1007,6 +1265,15 @@
                 .subscribe();
         }
 
+        function setupUsersRealtimeSubscription() {
+            supabaseClient
+                .channel('public:users')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, payload => {
+                    loadUsersData();
+                })
+                .subscribe();
+        }
+
         function openColumnToggleModal() {
             document.getElementById('columnModal').style.display = 'flex';
         }
@@ -1037,6 +1304,7 @@
         }
 
         function closeAllModals() {
+            document.getElementById('newUserModal').style.display = 'none';
             document.getElementById('detailsModal').style.display = 'none';
             document.getElementById('columnModal').style.display = 'none';
         }
