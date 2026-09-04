@@ -167,6 +167,10 @@
         .btn-edit-mode { background-color: #7c3aed; color: white; }
         .btn-edit-mode:hover { background-color: #6d28d9; }
         .btn-edit-active { background-color: #dc2626 !important; }
+        .btn-trash { background-color: #475569; color: white; }
+        .btn-trash:hover { background-color: #334155; }
+        .btn-datafile { background-color: #7c2d12; color: white; }
+        .btn-datafile:hover { background-color: #581c87; }
 
         input, select {
             padding: 9px 14px;
@@ -288,10 +292,22 @@
             border-bottom: 1px dashed #e2e8f0;
         }
 
+        /* جێگیرکردنی تۆتاڵەکان و هێدەری خشتە کاتێک سکڕۆڵ دەکرێت */
+        .sticky-report-container {
+            position: sticky;
+            top: 0;
+            background: #fff;
+            z-index: 10;
+            padding-top: 5px;
+            padding-bottom: 5px;
+        }
+
         .table-responsive {
             width: 100%;
             overflow-x: auto;
-            margin-top: 15px;
+            overflow-y: auto;
+            max-height: 65vh;
+            margin-top: 5px;
             border-radius: 10px;
             border: 1px solid #eaeaea;
         }
@@ -314,6 +330,9 @@
             background-color: #0b2997;
             color: white;
             font-weight: 500;
+            position: sticky;
+            top: 0;
+            z-index: 5;
         }
 
         .data-table tr:hover {
@@ -592,51 +611,56 @@
                     </div>
                     <div class="header-actions">
                         <button class="btn btn-success" onclick="exportTableToExcel()"><i class="fa-solid fa-file-excel"></i> ئێکسڵ</button>
+                        <button class="btn btn-datafile" onclick="importDataFile()"><i class="fa-solid fa-file-arrow-up"></i> فایلی داتاکان</button>
+                        <input type="file" id="dataFilePicker" style="display: none;" accept=".json,.csv,.txt" onchange="handleDataFileSelected(event)">
                         <button class="btn btn-edit-mode" id="edit-mode-btn" onclick="toggleEditMode()"><i class="fa-solid fa-pen-to-square"></i> تۆمار</button>
+                        <button class="btn btn-trash" onclick="openTrashModal()"><i class="fa-solid fa-trash-can"></i> تەنەکە</button>
                         <button class="btn btn-info" onclick="openColumnToggleModal()"><i class="fa-solid fa-columns"></i> ستوونەکان</button>
                         <button class="btn btn-warning" onclick="window.print()"><i class="fa-solid fa-print"></i> پرێنت</button>
                     </div>
                 </div>
 
-                <div class="report-filters">
-                    <div class="filter-group">
-                        <label>بەرواری سەرەتایی</label>
-                        <input type="date" id="report-start-date" onchange="applyReportFilters()">
+                <div class="sticky-report-container">
+                    <div class="report-filters" style="margin-bottom: 10px;">
+                        <div class="filter-group">
+                            <label>بەرواری سەرەتایی</label>
+                            <input type="date" id="report-start-date" onchange="applyReportFilters()">
+                        </div>
+                        <div class="filter-group">
+                            <label>بەرواری کۆتایی</label>
+                            <input type="date" id="report-end-date" onchange="applyReportFilters()">
+                        </div>
+                        <div class="filter-group">
+                            <label>گەڕان</label>
+                            <input type="text" id="report-search-name" placeholder="گەڕان..." oninput="applyReportFilters()">
+                        </div>
+                        <div class="filter-group">
+                            <label>کاتی دەستپێک</label>
+                            <input type="text" id="report-start-time" value="06:00" placeholder="06:00" oninput="applyReportFilters()">
+                        </div>
                     </div>
-                    <div class="filter-group">
-                        <label>بەرواری کۆتایی</label>
-                        <input type="date" id="report-end-date" onchange="applyReportFilters()">
-                    </div>
-                    <div class="filter-group">
-                        <label>گەڕان</label>
-                        <input type="text" id="report-search-name" placeholder="گەڕان..." oninput="applyReportFilters()">
-                    </div>
-                    <div class="filter-group">
-                        <label>کاتی دەستپێک</label>
-                        <input type="text" id="report-start-time" value="06:00" placeholder="06:00" oninput="applyReportFilters()">
-                    </div>
-                </div>
 
-                <div class="summary-box">
-                    <div class="summary-card">
-                        <span>کۆی گشتی گەشتەکان</span>
-                        <span id="sum-count">0</span>
-                    </div>
-                    <div class="summary-card">
-                        <span>کۆی گشتی کێشی بار</span>
-                        <span id="sum-weight">0</span>
-                    </div>
-                    <div class="summary-card">
-                        <span>کۆی گشتی ژمارەی پارچە</span>
-                        <span id="sum-pieces">0</span>
-                    </div>
-                    <div class="summary-card">
-                        <span>کۆی گشتی پارەی هێنراوە</span>
-                        <span id="sum-money">0</span>
-                    </div>
-                    <div class="summary-card">
-                        <span>کۆی گشتی کات</span>
-                        <span id="sum-total-time">0 ک</span>
+                    <div class="summary-box" style="margin-bottom: 0;">
+                        <div class="summary-card">
+                            <span>کۆی گشتی گەشتەکان</span>
+                            <span id="sum-count">0</span>
+                        </div>
+                        <div class="summary-card">
+                            <span>کۆی گشتی کێشی بار</span>
+                            <span id="sum-weight">0</span>
+                        </div>
+                        <div class="summary-card">
+                            <span>کۆی گشتی ژمارەی پارچە</span>
+                            <span id="sum-pieces">0</span>
+                        </div>
+                        <div class="summary-card">
+                            <span>کۆی گشتی پارەی هێنراوە</span>
+                            <span id="sum-money">0</span>
+                        </div>
+                        <div class="summary-card">
+                            <span>کۆی گشتی کات</span>
+                            <span id="sum-total-time">0 ک</span>
+                        </div>
                     </div>
                 </div>
 
@@ -659,6 +683,7 @@
                                 <th>کاتی گەشتنەوە</th>
                                 <th>پارەی هێنراوە</th>
                                 <th>کۆی کات</th>
+                                <th id="report-action-th" style="display: none;">سڕینەوە</th>
                             </tr>
                         </thead>
                         <tbody id="report-table-body">
@@ -683,6 +708,29 @@
         <div class="bottom-nav-item" id="menu-reports" onclick="switchView('reports')">
             <i class="fa-solid fa-table-list"></i>
             <span>ڕاپۆرتەکان</span>
+        </div>
+    </div>
+
+    <!-- ویندۆی تەنەکە خۆڵ (Trash Modal) -->
+    <div id="trashModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <h3 style="margin-bottom: 15px; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; color: #dc2626;"><i class="fa-solid fa-trash-can"></i> تەنەکە خۆڵ (ڕیزە سڕاوەکان)</h3>
+            <div class="table-responsive" style="max-height: 40vh;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ناوی سایەق</th>
+                            <th>بەروار</th>
+                            <th>کاتی تۆمار</th>
+                            <th>کردار</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trash-table-body">
+                        <tr><td colspan="4" style="text-align: center; color: #777;">تەنەکە خۆڵ خاڵییە.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <button class="btn btn-secondary" style="width: 100%; margin-top: 20px; justify-content: center;" onclick="closeAllModals()">داخستن</button>
         </div>
     </div>
 
@@ -740,7 +788,7 @@
                 <div class="column-toggle-item"><span>ژمارەی وەسڵ</span> <input type="checkbox" checked onchange="toggleColumn(7, this.checked)"></div>
                 <div class="column-toggle-item"><span>بەروار</span> <input type="checkbox" checked onchange="toggleColumn(8, this.checked)"></div>
                 <div class="column-toggle-item"><span>کاتی تۆمار</span> <input type="checkbox" checked onchange="toggleColumn(9, this.checked)"></div>
-                <div class="column-toggle-item"><span>کاتی ناو زۆن</span> <input type="checkbox" checked onchange="toggleColumn(10, this.checked)"></div>
+                <div class="column-toggle-item"><span>کاتی ناو زۆನ</span> <input type="checkbox" checked onchange="toggleColumn(10, this.checked)"></div>
                 <div class="column-toggle-item"><span>کاتی دەرچوون لە زۆن</span> <input type="checkbox" checked onchange="toggleColumn(11, this.checked)"></div>
                 <div class="column-toggle-item"><span>کاتی گەشتنەوە</span> <input type="checkbox" checked onchange="toggleColumn(12, this.checked)"></div>
                 <div class="column-toggle-item"><span>پارەی هێنراوە</span> <input type="checkbox" checked onchange="toggleColumn(13, this.checked)"></div>
@@ -773,15 +821,26 @@
         let isUsersEditMode = false;
 
         window.onload = function() {
+            const savedView = localStorage.getItem('current_active_view') || 'dashboard';
+            const savedFilterDate = localStorage.getItem('filter_date');
+            const savedReportStart = localStorage.getItem('report_start_date');
+            const savedReportEnd = localStorage.getItem('report_end_date');
+            const savedReportSearch = localStorage.getItem('report_search_name');
+            const savedReportStartTime = localStorage.getItem('report_start_time');
+
             const today = new Date();
             const yyyy = today.getFullYear();
             const mm = String(today.getMonth() + 1).padStart(2, '0');
-            
             const firstDayOfMonth = `${yyyy}-${mm}-01`;
-            document.getElementById('report-start-date').value = firstDayOfMonth;
-            document.getElementById('report-end-date').value = '';
 
-            document.getElementById('filter-date').value = today.toISOString().split('T')[0];
+            document.getElementById('report-start-date').value = savedReportStart !== null ? savedReportStart : firstDayOfMonth;
+            document.getElementById('report-end-date').value = savedReportEnd !== null ? savedReportEnd : '';
+            document.getElementById('filter-date').value = savedFilterDate !== null ? savedFilterDate : today.toISOString().split('T')[0];
+            
+            if (savedReportSearch) document.getElementById('report-search-name').value = savedReportSearch;
+            if (savedReportStartTime) document.getElementById('report-start-time').value = savedReportStartTime;
+
+            switchView(savedView, true);
 
             loadUsersDataForDashboard().then(() => {
                 loadFromLocalStorageAndServer();
@@ -789,9 +848,37 @@
             setupRealtimeSubscription();
             setupUsersRealtimeSubscription();
             loadUsersData();
+
+            setInterval(() => {
+                silentRefresh();
+            }, 10 * 60 * 1000);
         }
 
-        function switchView(viewName) {
+        async function silentRefresh() {
+            try {
+                let { data: recordsData } = await supabaseClient.from('delivery_records').select('*').order('record_date', { ascending: false }).order('record_time', { ascending: false });
+                if (recordsData) {
+                    allRecordsData = recordsData;
+                    localStorage.setItem('cached_delivery_records', JSON.stringify(recordsData));
+                    filterAndRenderRecords(recordsData);
+                    applyReportFilters();
+                }
+
+                let { data: usersData } = await supabaseClient.from('users').select('*').order('id', { ascending: true });
+                if (usersData) {
+                    allUsersData = usersData;
+                    if (document.getElementById('drivers-view').classList.contains('active-view')) {
+                        renderUsersTable(allUsersData);
+                    }
+                }
+                
+                await loadUsersDataForDashboard();
+            } catch (err) {
+                console.log("هەڵە لە ڕیفرێشی خودکاردا:", err);
+            }
+        }
+
+        function switchView(viewName, skipSave = false) {
             document.querySelectorAll('.section-view').forEach(el => el.classList.remove('active-view'));
             document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active-menu'));
 
@@ -806,6 +893,10 @@
                 document.getElementById('reports-view').classList.add('active-view');
                 document.getElementById('menu-reports').classList.add('active-menu');
                 applyReportFilters();
+            }
+
+            if (!skipSave) {
+                localStorage.setItem('current_active_view', viewName);
             }
         }
 
@@ -894,7 +985,9 @@
 
         async function loadUsersData() {
             const tbody = document.getElementById('users-table-body');
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">بارکردنی داتاکان...</td></tr>';
+            if(allUsersData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">بارکردنی داتاکان...</td></tr>';
+            }
 
             const { data, error } = await supabaseClient
                 .from('users')
@@ -1025,7 +1118,7 @@
             }
 
             let query = supabaseClient.from('delivery_records').select('*');
-            const { data, error } = await query.order('record_time', { ascending: true });
+            const { data, error } = await query.order('record_date', { ascending: false }).order('record_time', { ascending: false });
 
             if (error) {
                 console.error("هەڵە لە هێنانی داتا: ", error.message);
@@ -1042,6 +1135,7 @@
 
         function filterAndRenderRecords(dataList) {
             const selectedDate = document.getElementById('filter-date').value;
+            localStorage.setItem('filter_date', selectedDate);
             const filtered = dataList.filter(item => item.record_date === selectedDate);
             renderTodayCards(filtered);
         }
@@ -1090,6 +1184,12 @@
             const startDate = document.getElementById('report-start-date').value;
             const endDate = document.getElementById('report-end-date').value;
             const searchName = document.getElementById('report-search-name').value.toLowerCase().trim();
+            const startTimeVal = document.getElementById('report-start-time').value;
+
+            localStorage.setItem('report_start_date', startDate);
+            localStorage.setItem('report_end_date', endDate);
+            localStorage.setItem('report_search_name', searchName);
+            localStorage.setItem('report_start_time', startTimeVal);
 
             updatePrintDateHeader(startDate, endDate);
 
@@ -1148,9 +1248,11 @@
         function renderReportTable(dataList) {
             const tableBody = document.getElementById('report-table-body');
             tableBody.innerHTML = '';
+            const actionTh = document.getElementById('report-action-th');
+            actionTh.style.display = isEditMode ? '' : 'none';
 
             if (!dataList || dataList.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="15" style="text-align: center; color: #777;">هیچ داتایەک نەدۆزراوەتەوە.</td></tr>';
+                tableBody.innerHTML = `<tr><td colspan="${isEditMode ? 16 : 15}" style="text-align: center; color: #777;">هیچ داتایەک نەدۆزراوەتەوە.</td></tr>`;
                 document.getElementById('sum-count').innerText = 0;
                 document.getElementById('sum-weight').innerText = 0;
                 document.getElementById('sum-pieces').innerText = 0;
@@ -1189,6 +1291,11 @@
                     timeDiffText = 'گەشتی ' + driverTripCounter[driverName] + ' (بێژمێر)';
                 }
 
+                let actionTd = '';
+                if (isEditMode) {
+                    actionTd = `<td><button class="btn btn-danger" style="padding: 4px 10px; font-size: 11px;" onclick="moveToTrash('${item.id}')"><i class="fa-solid fa-trash"></i></button></td>`;
+                }
+
                 tableBody.innerHTML += `
                     <tr data-id="${item.id}">
                         <td contenteditable="${isEditMode}" class="${isEditMode ? 'editable-cell' : ''}" onblur="updateField(this, '${item.id}', 'driver')">${item.driver || '-'}</td>
@@ -1206,6 +1313,7 @@
                         <td contenteditable="${isEditMode}" class="${isEditMode ? 'editable-cell' : ''}" onblur="updateField(this, '${item.id}', 'arrival_time')">${item.arrival_time || '-'}</td>
                         <td contenteditable="${isEditMode}" class="${isEditMode ? 'editable-cell' : ''}" onblur="updateField(this, '${item.id}', 'collected_money')">${item.collected_money ?? 0}</td>
                         <td style="color: #0b2997; font-weight: 600;">${timeDiffText}</td>
+                        ${actionTd}
                     </tr>
                 `;
             });
@@ -1253,6 +1361,66 @@
             }
         }
 
+        async function moveToTrash(id) {
+            if (!confirm("ئایا دڵنیای لە سڕینەوەی ئەم ڕیزە؟")) return;
+
+            const itemIndex = allRecordsData.findIndex(i => String(i.id) === String(id));
+            if (itemIndex > -1) {
+                let deletedItem = allRecordsData.splice(itemIndex, 1)[0];
+                let trashList = JSON.parse(localStorage.getItem('trash_delivery_records') || '[]');
+                trashList.push(deletedItem);
+                localStorage.setItem('trash_delivery_records', JSON.stringify(trashList));
+                localStorage.setItem('cached_delivery_records', JSON.stringify(allRecordsData));
+                applyReportFilters();
+                filterAndRenderRecords(allRecordsData);
+            }
+
+            const { error } = await supabaseClient
+                .from('delivery_records')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                console.error("هەڵە لە سڕینەوە:", error.message);
+            }
+        }
+
+        function openTrashModal() {
+            const trashBody = document.getElementById('trash-table-body');
+            trashBody.innerHTML = '';
+            let trashList = JSON.parse(localStorage.getItem('trash_delivery_records') || '[]');
+
+            if (trashList.length === 0) {
+                trashBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">تەنەکە خۆڵ خاڵییە.</td></tr>';
+            } else {
+                trashList.forEach((item, index) => {
+                    trashBody.innerHTML += `
+                        <tr>
+                            <td>${item.driver || '-'}</td>
+                            <td>${item.record_date || '-'}</td>
+                            <td>${item.record_time || '-'}</td>
+                            <td>
+                                <button class="btn btn-success" style="padding: 4px 8px; font-size: 11px;" onclick="restoreFromTrash(${index})"><i class="fa-solid fa-rotate-left"></i> گەڕاندنەوە</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            document.getElementById('trashModal').style.display = 'flex';
+        }
+
+        function restoreFromTrash(index) {
+            let trashList = JSON.parse(localStorage.getItem('trash_delivery_records') || '[]');
+            let restored = trashList.splice(index, 1)[0];
+            localStorage.setItem('trash_delivery_records', JSON.stringify(trashList));
+            
+            allRecordsData.push(restored);
+            localStorage.setItem('cached_delivery_records', JSON.stringify(allRecordsData));
+            applyReportFilters();
+            filterAndRenderRecords(allRecordsData);
+            openTrashModal();
+        }
+
         function toggleColumn(colIndex, show) {
             const table = document.getElementById('main-report-table');
             for (let row of table.rows) {
@@ -1283,6 +1451,92 @@
             document.body.appendChild(downloadLink);
             downloadLink.click();
             document.body.removeChild(downloadLink);
+        }
+
+        // زیادکردنی تایبەتمەندی فایلی داتاکان (Import Data File & Background Validation)
+        function importDataFile() {
+            document.getElementById('dataFilePicker').click();
+        }
+
+        async function handleDataFileSelected(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    let importedData = [];
+                    const content = e.target.result;
+                    
+                    if (file.name.endsWith('.json')) {
+                        importedData = JSON.parse(content);
+                    } else {
+                        // تێگەیشتن لە فایلی CSV سادە ئەگەر درابێت
+                        let lines = content.split('\n');
+                        let headers = lines[0].split(',');
+                        for (let i = 1; i < lines.length; i++) {
+                            if (!lines[i].trim()) continue;
+                            let obj = {};
+                            let currentline = lines[i].split(',');
+                            headers.forEach((h, index) => {
+                                obj[h.trim().replace(/"/g, '')] = currentline[index] ? currentline[index].trim().replace(/"/g, '') : '';
+                            });
+                            importedData.push(obj);
+                        }
+                    }
+
+                    if (Array.isArray(importedData) && importedData.length > 0) {
+                        // هەڵگرتنی خێرا لە localStorage بۆ خێرا کارکردنی سیستەمەکە
+                        allRecordsData = importedData;
+                        localStorage.setItem('cached_delivery_records', JSON.stringify(importedData));
+                        filterAndRenderRecords(importedData);
+                        applyReportFilters();
+                        alert("فایلەکە بە سەرکەوتوویی بارکرا و داتاکان لە سیستەمەکەدا هەڵگیران!");
+
+                        // چێکردنەوەی ڕاستی و دروستی لە باکگراوند لەگەڵ سەببەیس (Supabase)
+                        validateDataWithSupabaseBackground(importedData);
+                    } else {
+                        alert("فایلەکە هیچ داتایەکی دروستی تێدا نییە یان قاڵبەکەی هەڵەیە.");
+                    }
+                } catch (err) {
+                    console.error("هەڵە لە خوێندنەوەی فایل:", err);
+                    alert("هەڵە ڕوویدا لە شیکردنەوەی فایلی داتاکان!");
+                }
+                event.target.value = ''; // سڕینەوەی بەندەکەی فایل بۆ ئەوەی دووبارە کاربکاتەوە
+            };
+            reader.readAsText(file);
+        }
+
+        async function validateDataWithSupabaseBackground(localData) {
+            try {
+                let { data: serverData, error } = await supabaseClient.from('delivery_records').select('*');
+                if (error || !serverData) return;
+
+                let hasChanges = false;
+                // بەراوردکردنی سادە لەگەڵ سەببەیس
+                if (serverData.length !== localData.length) {
+                    hasChanges = true;
+                } else {
+                    for (let i = 0; i < serverData.length; i++) {
+                        if (String(serverData[i].id) !== String(localData[i]?.id)) {
+                            hasChanges = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (hasChanges) {
+                    console.log("گۆڕانکاری دۆزرایەوە لەگەڵ سەببەیس، نوێکردنەوەی داتا...");
+                    allRecordsData = serverData;
+                    localStorage.setItem('cached_delivery_records', JSON.stringify(serverData));
+                    filterAndRenderRecords(serverData);
+                    applyReportFilters();
+                } else {
+                    console.log("داتاکانی ناو سەببەیس و خۆجێی ڕاست و دروست و یەکن.");
+                }
+            } catch (err) {
+                console.log("هەڵە لە بەراوردکردنی باکگراوند:", err);
+            }
         }
 
         function setupRealtimeSubscription() {
@@ -1337,6 +1591,7 @@
             document.getElementById('newUserModal').style.display = 'none';
             document.getElementById('detailsModal').style.display = 'none';
             document.getElementById('columnModal').style.display = 'none';
+            document.getElementById('trashModal').style.display = 'none';
         }
     </script>
 </body>
