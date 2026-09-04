@@ -675,12 +675,12 @@
                                 <th>ئۆتۆمبێل</th>
                                 <th>کێشی بار</th>
                                 <th>پارچە</th>
-                                <th>ژمارەی وەسڵ</th>
+                                <th>ژ. وەسڵ</th>
                                 <th>بەروار</th>
                                 <th>کاتی تۆمار</th>
-                                <th>کاتی ناو زۆن</th>
-                                <th>کاتی دەرچوون لە زۆن</th>
-                                <th>کاتی گەشتنەوە</th>
+                                <th> ناو زۆن</th>
+                                <th> دەرچوون لە زۆن</th>
+                                <th> گەشتنەوە</th>
                                 <th>پارەی هێنراوە</th>
                                 <th>کۆی کات</th>
                                 <th id="report-action-th" style="display: none;">سڕینەوە</th>
@@ -1242,7 +1242,7 @@
             if (diffMins === 0) return '-';
             let h = Math.floor(diffMins / 60);
             let m = diffMins % 60;
-            return `${h} ک و ${m} خ`;
+            return `${h} س و ${m} د`;
         }
 
         function renderReportTable(dataList) {
@@ -1257,7 +1257,7 @@
                 document.getElementById('sum-weight').innerText = 0;
                 document.getElementById('sum-pieces').innerText = 0;
                 document.getElementById('sum-money').innerText = 0;
-                document.getElementById('sum-total-time').innerText = "0 ک";
+                document.getElementById('sum-total-time').innerText = "0 س";
                 return;
             }
 
@@ -1288,7 +1288,7 @@
                     totalMinutesSum += mins;
                     timeDiffText = calculateTimeDiff(item.arrival_time, startTime);
                 } else {
-                    timeDiffText = 'گەشتی ' + driverTripCounter[driverName] + ' (بێژمێر)';
+                    timeDiffText = ' ' + driverTripCounter[driverName] + ' (نییە)';
                 }
 
                 let actionTd = '';
