@@ -215,8 +215,8 @@
         .cards-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 20px;
-            padding: 5px 0;
+            gap: 25px;
+            padding: 20px 5px 5px 5px;
             width: 100%;
         }
 
@@ -228,6 +228,8 @@
             box-shadow: 0 4px 10px rgba(11, 41, 151, 0.08);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
             cursor: pointer;
+            position: relative; 
+            margin-top: 18px;   
         }
 
         .trip-card:hover {
@@ -243,6 +245,7 @@
             margin-bottom: 12px;
             border-bottom: 1px solid #d2d6dc;
             padding-bottom: 8px;
+            padding-right: 25px;
         }
 
         .trip-card-driver {
@@ -251,7 +254,7 @@
             color: #0b2997;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
         }
 
         .trip-card-time {
@@ -765,8 +768,9 @@
 
         let allRecordsData = [];
         let allUsersData = [];
+        let usersImageMap = {}; 
         let isEditMode = false;
-        let isUsersEditMode = false; // دۆخی چاککردنی یوسەرەکان
+        let isUsersEditMode = false;
 
         window.onload = function() {
             const today = new Date();
@@ -779,7 +783,9 @@
 
             document.getElementById('filter-date').value = today.toISOString().split('T')[0];
 
-            loadFromLocalStorageAndServer();
+            loadUsersDataForDashboard().then(() => {
+                loadFromLocalStorageAndServer();
+            });
             setupRealtimeSubscription();
             setupUsersRealtimeSubscription();
             loadUsersData();
@@ -803,7 +809,18 @@
             }
         }
 
-        // شاردنەوە و نیشاندانی پاسۆڕد لە کاتی نووسیندا
+        async function loadUsersDataForDashboard() {
+            const { data, error } = await supabaseClient
+                .from('users')
+                .select('username, avatar_url');
+            
+            if (data) {
+                data.forEach(user => {
+                    usersImageMap[user.username] = user.avatar_url || '';
+                });
+            }
+        }
+
         function togglePasswordVisibility() {
             const passwordInput = document.getElementById('new-password');
             const toggleBtn = document.getElementById('togglePasswordBtn');
@@ -818,7 +835,6 @@
             }
         }
 
-        // کردنەوەی پەنجەرەی یوسەری نوێ و هێنانی پیشەکان لە سەببەیس
         async function openNewUserModal() {
             document.getElementById('new-username').value = '';
             document.getElementById('new-password').value = '';
@@ -850,7 +866,6 @@
             }
         }
 
-        // پاشەکەوتکردنی یوسەری نوێ بۆ سەببەیس (تەیبڵی users)
         async function saveNewUser() {
             const username = document.getElementById('new-username').value.trim();
             const profession = document.getElementById('new-profession-select').value;
@@ -874,6 +889,7 @@
             alert("بەکارهێنەری نوێ بە سەرکەوتوویی تۆمارکرا!");
             closeAllModals();
             loadUsersData();
+            loadUsersDataForDashboard();
         }
 
         async function loadUsersData() {
@@ -926,7 +942,6 @@
             });
         }
 
-        // کۆنترۆڵکردنی دۆخی چاککردنی یوسەرەکان (Edit Mode)
         function toggleUsersEditMode() {
             isUsersEditMode = !isUsersEditMode;
             const btn = document.getElementById('users-edit-mode-btn');
@@ -940,7 +955,6 @@
             renderUsersTable(allUsersData);
         }
 
-        // نوێکردنەوەی خانەیەک بۆ یوسەر لە سەببەیس
         async function updateUserField(element, id, fieldName) {
             let newValue = element.innerText.trim();
             const item = allUsersData.find(i => String(i.id) === String(id));
@@ -957,9 +971,9 @@
                 console.error("هەڵە لە نوێکردنەوەی یوسەر:", error.message);
                 alert("هەڵە ڕوویدا لە نوێکردنەوەی داتا!");
             }
+            loadUsersDataForDashboard();
         }
 
-        // سڕینەوەی یوسەر لە سەببەیس
         async function deleteUser(id) {
             if (!confirm("ئایا دڵنیای لە سڕینەوەی ئەم بەکارهێنەرە؟")) return;
 
@@ -976,6 +990,7 @@
 
             alert("بەکارهێنەر بە سەرکەوتوویی سڕایەوە!");
             loadUsersData();
+            loadUsersDataForDashboard();
         }
 
         function filterUsersTable() {
@@ -1041,16 +1056,30 @@
             }
 
             dataList.forEach((item) => {
+                let driverName = item.driver || 'نادیار';
+                let userImage = usersImageMap[driverName];
+
+                let userImageHtml = '';
+                if (userImage && userImage.trim() !== '') {
+                    userImageHtml = `<img src="${userImage}" alt="avatar" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #0b2997; position: absolute; right: -18px; top: -20px; background: #fff; box-shadow: 0 3px 6px rgba(0,0,0,0.2);">`;
+                } else {
+                    userImageHtml = `<div style="width: 60px; height: 60px; border-radius: 50%; background: #0b2997; color: #fff; display: flex; align-items: center; justify-content: center; position: absolute; right: -18px; top: -20px; border: 2px solid #fff; box-shadow: 0 3px 6px rgba(0,0,0,0.2); font-size: 24px;"><i class="fa-solid fa-user"></i></div>`;
+                }
+
                 container.innerHTML += `
                     <div class="trip-card" onclick="openDetailsModalByData('${item.id}')">
-                        <div class="trip-card-header">
-                            <span class="trip-card-driver"><i class="fa-solid fa-user-tie"></i> ${item.driver || 'نادیار'}</span>
+                        ${userImageHtml}
+                        <div class="trip-card-header" style="position: relative; padding-left: 40px;">
+                            <span class="trip-card-driver">
+                                ${driverName}
+                            </span>
                             <span class="trip-card-time"><i class="fa-regular fa-clock"></i> ${item.record_time || '-'}</span>
                         </div>
                         <div class="trip-card-body">
-                            <div><span class="val">دابەشکار: ${item.distributor || '-'}</span></div>
-                            <div><span class="val">زۆن: ${item.zone || '-'}</span></div>
-                            <div><span class="val">ئۆتۆمبێل: ${item.vehicle || '-'}</span></div>
+                            <div><span class="val">دابەشکار: ${item.distributor || ''}</span></div>
+                            <div><span class="val">مندوب: ${item.delegate || ''}</span></div>
+                            <div><span class="val">زۆن: ${item.zone || ''}</span></div>
+                            <div><span class="val">ئۆتۆمبێل: ${item.vehicle || ''}</span></div>
                         </div>
                     </div>
                 `;
@@ -1270,6 +1299,7 @@
                 .channel('public:users')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, payload => {
                     loadUsersData();
+                    loadUsersDataForDashboard();
                 })
                 .subscribe();
         }
