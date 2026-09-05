@@ -15,6 +15,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- Select2 CSS CDN بۆ گەڕان لەناو لیست بۆکسەکاندا -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
     <style>
         * {
             font-family: 'Poppins', sans-serif;
@@ -292,7 +295,6 @@
             border-bottom: 1px dashed #e2e8f0;
         }
 
-        /* جێگیرکردنی تۆتاڵەکان و هێدەری خشتە کاتێک سکڕۆڵ دەکرێت */
         .sticky-report-container {
             position: sticky;
             top: 0;
@@ -305,8 +307,8 @@
         .table-responsive {
             width: 100%;
             overflow-x: auto;
-            overflow-y: auto;
-            max-height: 65vh;
+            overflow-y: visible;
+            max-height: none;
             margin-top: 5px;
             border-radius: 10px;
             border: 1px solid #eaeaea;
@@ -395,7 +397,7 @@
             padding: 20px;
             border-radius: 16px;
             width: 100%;
-            max-width: 400px;
+            max-width: 450px;
             max-height: 90vh;
             overflow-y: auto;
             box-shadow: 0 10px 30px rgba(0,0,0,0.15);
@@ -403,10 +405,10 @@
         }
 
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 4px;
         }
 
         .form-group label {
@@ -554,9 +556,28 @@
         <div id="dashboard-view" class="section-view active-view">
             <div class="dashboard-container">
                 <div class="dashboard-header">
-                    <h2>
+                    <h2 style="display: flex; align-items: center; gap: 12px;">
                         <i class="fa-solid fa-route" style="color: #0b2997;"></i> گەشتی ڕاپۆرت
+                        
+                        <!-- ئایکۆنی مۆدێرنی ئاگادارکردنەوەکان لێرەدا خراوەتە تەنیشت تایتڵەکەوە -->
+                        <div style="position: relative; display: inline-block;">
+                            <button id="notifBtn" onclick="toggleNotifications()" style="background: linear-gradient(135deg, #f0f3ff, #e2e8f0); border: 1px solid #c7d2fe; width: 38px; height: 38px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(11,41,151,0.1); transition: all 0.3s ease;" title="ئاگادارکردنەوەی گۆڕانکارییەکان">
+                                <i class="fa-solid fa-bell" style="color: #0b2997; font-size: 16px;"></i>
+                                <span id="notifBadge" style="position: absolute; top: -2px; right: -2px; background: #dc2626; color: white; border-radius: 50%; padding: 1px 5px; font-size: 9px; font-weight: 600; display: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">0</span>
+                            </button>
+                            
+                            <!-- لیستی نۆتیفیکەیشنەکان کە دەکرێتەوە -->
+                            <div id="notifDropdown" style="display: none; position: absolute; right: 0; top: 45px; width: 320px; background: white; border: 1px solid #ddd; box-shadow: 0 8px 24px rgba(0,0,0,0.12); border-radius: 12px; z-index: 1000; max-height: 400px; overflow-y: auto;">
+                                <div style="padding: 12px 15px; font-weight: bold; border-bottom: 1px solid #eee; text-align: right; background: #f8f9fe; border-top-left-radius: 12px; border-top-right-radius: 12px; color: #0b2997; font-size: 13px;">
+                                    <i class="fa-solid fa-bell"></i> ئاگادارکردنەوەی گۆڕانکارییەکان
+                                </div>
+                                <div id="notifList" style="text-align: right; font-size: 13px;">
+                                    <!-- داتا لێرە بە جافاسکریپت دێن -->
+                                </div>
+                            </div>
+                        </div>
                     </h2>
+
                     <div class="header-actions">
                         <div style="display: flex; align-items: center; width: 100%; max-width: 170px;">
                             <input type="date" id="filter-date" onchange="loadRecords()">
@@ -610,6 +631,7 @@
                         لە (بەروار) بۆ (بەروار)
                     </div>
                     <div class="header-actions">
+                        <button class="btn btn-success" onclick="openDepartureModal()"><i class="fa-solid fa-plus-circle"></i> دووگمەی دەرچوون</button>
                         <button class="btn btn-success" onclick="exportTableToExcel()"><i class="fa-solid fa-file-excel"></i> ئێکسڵ</button>
                         <button class="btn btn-datafile" onclick="importDataFile()"><i class="fa-solid fa-file-arrow-up"></i> فایلی داتاکان</button>
                         <input type="file" id="dataFilePicker" style="display: none;" accept=".json,.csv,.txt" onchange="handleDataFileSelected(event)">
@@ -711,6 +733,84 @@
         </div>
     </div>
 
+    <!-- ویندۆی دەرچوون (Departure Modal) -->
+    <div id="departureModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <h3 style="margin-bottom: 15px; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; color: #0b2997;"><i class="fa-solid fa-truck-fast"></i> تۆمارکردنی ڕێزی نوێ (دووگمەی دەرچوون)</h3>
+            
+            <!-- خانەی سایەق بەشێوەی ئۆتۆکۆمپلیتیشن -->
+            <div class="form-group" style="position: relative;">
+                <input type="text" id="dep-driver-input" placeholder="ناوی سایەق بنووسە..." autocomplete="off" oninput="handleAutocomplete('driver')" onfocus="handleAutocomplete('driver')">
+                <div id="dep-driver-list" style="display: none; position: absolute; top: 100%; right: 0; width: 100%; background: #fff; border: 1px solid #ddd; border-radius: 8px; z-index: 1001; max-height: 160px; overflow-y: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-top: 2px;"></div>
+            </div>
+
+            <!-- خانەی دابەشکار بەشێوەی ئۆتۆکۆمپلیتیشن -->
+            <div class="form-group" style="position: relative;">
+                <input type="text" id="dep-distributor-input" placeholder="ناوی دابەشکار بنووسە..." autocomplete="off" oninput="handleAutocomplete('distributor')" onfocus="handleAutocomplete('distributor')">
+                <div id="dep-distributor-list" style="display: none; position: absolute; top: 100%; right: 0; width: 100%; background: #fff; border: 1px solid #ddd; border-radius: 8px; z-index: 1001; max-height: 160px; overflow-y: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-top: 2px;"></div>
+            </div>
+
+            <!-- خانەی مەندوب بەشێوەی ئۆتۆکۆمپلیتیشن -->
+            <div class="form-group" style="position: relative;">
+                <input type="text" id="dep-delegate-input" placeholder="ناوی مەندووب بنووسە..." autocomplete="off" oninput="handleAutocomplete('delegate')" onfocus="handleAutocomplete('delegate')">
+                <div id="dep-delegate-list" style="display: none; position: absolute; top: 100%; right: 0; width: 100%; background: #fff; border: 1px solid #ddd; border-radius: 8px; z-index: 1001; max-height: 160px; overflow-y: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-top: 2px;"></div>
+            </div>
+
+            <!-- خانەی زۆن بەشێوەی ئۆتۆکۆمپلیتیشن -->
+            <div class="form-group" style="position: relative;">
+                <input type="text" id="dep-zone-input" placeholder="ناوی زۆن بنووسە..." autocomplete="off" oninput="handleAutocomplete('zone')" onfocus="handleAutocomplete('zone')">
+                <div id="dep-zone-list" style="display: none; position: absolute; top: 100%; right: 0; width: 100%; background: #fff; border: 1px solid #ddd; border-radius: 8px; z-index: 1001; max-height: 160px; overflow-y: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-top: 2px;"></div>
+            </div>
+
+            <!-- خانەی ئۆتۆمبێل بەشێوەی ئۆتۆکۆمپلیتیشن -->
+            <div class="form-group" style="position: relative;">
+                <input type="text" id="dep-vehicle-input" placeholder="ژمارەی ئۆتۆمبێل بنووسە..." autocomplete="off" oninput="handleAutocomplete('vehicle')" onfocus="handleAutocomplete('vehicle')">
+                <div id="dep-vehicle-list" style="display: none; position: absolute; top: 100%; right: 0; width: 100%; background: #fff; border: 1px solid #ddd; border-radius: 8px; z-index: 1001; max-height: 160px; overflow-y: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-top: 2px;"></div>
+            </div>
+
+            <div class="form-group">
+                <input type="number" id="dep-cargo-weight" placeholder="کێشی بار (تەنها ژمارە)...">
+            </div>
+
+            <div class="form-group">
+                <input type="number" id="dep-pieces-count" placeholder="ژمارەی پارچە (تەنها ژمارە)...">
+            </div>
+
+            <div class="form-group">
+                <input type="number" id="dep-receipt-number" placeholder="ژمارەی وەسڵ (تەنها ژمارە)...">
+            </div>
+
+            <div class="form-group">
+                <input type="text" id="dep-record-time" placeholder="دەرچوون (کات: HH:MM بەشێوەی 24 سەعاتی)">
+            </div>
+
+            <div class="form-group">
+                <input type="text" id="dep-in-zone" placeholder="ناو زۆن (کات: HH:MM بەشێوەی 24 سەعاتی)">
+            </div>
+
+            <div class="form-group">
+                <input type="text" id="dep-out-zone" placeholder="دەرێی زۆن (کات: HH:MM بەشێوەی 24 سەعاتی)">
+            </div>
+
+            <div class="form-group">
+                <input type="text" id="dep-arrival" placeholder="گەشتنەوە (کات: HH:MM بەشێوەی 24 سەعاتی)">
+            </div>
+
+            <div class="form-group">
+                <input type="number" id="dep-collected-money" placeholder="پارەی هێنراوە (تەنها ژمارە)...">
+            </div>
+
+            <div class="form-group">
+                <input type="date" id="dep-record-date" title="بەروار">
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-success" style="flex: 1; justify-content: center;" onclick="saveDepartureRecord()"><i class="fa-solid fa-check"></i> تۆمارکردن</button>
+                <button class="btn btn-secondary" style="flex: 1; justify-content: center;" onclick="closeAllModals()"><i class="fa-solid fa-arrow-right"></i> گەڕانەوە</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ویندۆی تەنەکە خۆڵ (Trash Modal) -->
     <div id="trashModal" class="modal">
         <div class="modal-content" style="max-width: 600px;">
@@ -788,7 +888,7 @@
                 <div class="column-toggle-item"><span>ژمارەی وەسڵ</span> <input type="checkbox" checked onchange="toggleColumn(7, this.checked)"></div>
                 <div class="column-toggle-item"><span>بەروار</span> <input type="checkbox" checked onchange="toggleColumn(8, this.checked)"></div>
                 <div class="column-toggle-item"><span>کاتی تۆمار</span> <input type="checkbox" checked onchange="toggleColumn(9, this.checked)"></div>
-                <div class="column-toggle-item"><span>کاتی ناو زۆನ</span> <input type="checkbox" checked onchange="toggleColumn(10, this.checked)"></div>
+                <div class="column-toggle-item"><span>کاتی ناو زۆن</span> <input type="checkbox" checked onchange="toggleColumn(10, this.checked)"></div>
                 <div class="column-toggle-item"><span>کاتی دەرچوون لە زۆن</span> <input type="checkbox" checked onchange="toggleColumn(11, this.checked)"></div>
                 <div class="column-toggle-item"><span>کاتی گەشتنەوە</span> <input type="checkbox" checked onchange="toggleColumn(12, this.checked)"></div>
                 <div class="column-toggle-item"><span>پارەی هێنراوە</span> <input type="checkbox" checked onchange="toggleColumn(13, this.checked)"></div>
@@ -798,10 +898,14 @@
         </div>
     </div>
 
+    <!-- Supabase JS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- jQuery CDN (پێویستە بۆ Select2) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Select2 JS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
-        // PWA Service Worker Registration
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
@@ -816,6 +920,8 @@
 
         let allRecordsData = [];
         let allUsersData = [];
+        let allZonesData = [];
+        let allVehiclesData = [];
         let usersImageMap = {}; 
         let isEditMode = false;
         let isUsersEditMode = false;
@@ -848,10 +954,26 @@
             setupRealtimeSubscription();
             setupUsersRealtimeSubscription();
             loadUsersData();
+            loadZonesAndVehicles();
+            fetchNotifications();
+
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.form-group')) {
+                    document.querySelectorAll('[id$="-list"]').forEach(el => el.style.display = 'none');
+                }
+            });
 
             setInterval(() => {
                 silentRefresh();
             }, 10 * 60 * 1000);
+        }
+
+        async function loadZonesAndVehicles() {
+            const { data: zonesData } = await supabaseClient.from('zones').select('*');
+            if (zonesData) allZonesData = zonesData;
+
+            const { data: vehiclesData } = await supabaseClient.from('vehicles').select('*');
+            if (vehiclesData) allVehiclesData = vehiclesData;
         }
 
         async function silentRefresh() {
@@ -873,6 +995,8 @@
                 }
                 
                 await loadUsersDataForDashboard();
+                await loadZonesAndVehicles();
+                await fetchNotifications();
             } catch (err) {
                 console.log("هەڵە لە ڕیفرێشی خودکاردا:", err);
             }
@@ -957,6 +1081,90 @@
             }
         }
 
+        function openDepartureModal() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('dep-record-date').value = today;
+            document.getElementById('dep-driver-input').value = '';
+            document.getElementById('dep-distributor-input').value = '';
+            document.getElementById('dep-delegate-input').value = '';
+            document.getElementById('dep-zone-input').value = '';
+            document.getElementById('dep-vehicle-input').value = '';
+            document.getElementById('dep-cargo-weight').value = '';
+            document.getElementById('dep-pieces-count').value = '';
+            document.getElementById('dep-receipt-number').value = '';
+            document.getElementById('dep-record-time').value = '';
+            document.getElementById('dep-in-zone').value = '';
+            document.getElementById('dep-out-zone').value = '';
+            document.getElementById('dep-arrival').value = '';
+            document.getElementById('dep-collected-money').value = '';
+
+            document.getElementById('departureModal').style.display = 'flex';
+        }
+
+        function isValid24Time(timeStr) {
+            if (!timeStr) return true;
+            const regex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+            return regex.test(timeStr);
+        }
+
+        async function saveDepartureRecord() {
+            const driver = document.getElementById('dep-driver-input').value.trim();
+            const distributor = document.getElementById('dep-distributor-input').value.trim();
+            const delegate = document.getElementById('dep-delegate-input').value.trim();
+            const zone = document.getElementById('dep-zone-input').value.trim();
+            const vehicle = document.getElementById('dep-vehicle-input').value.trim();
+            
+            const cargo_weight = document.getElementById('dep-cargo-weight').value;
+            const pieces_count = document.getElementById('dep-pieces-count').value;
+            const receipt_number = document.getElementById('dep-receipt-number').value;
+            
+            const record_time = document.getElementById('dep-record-time').value.trim();
+            const in_zone_time = document.getElementById('dep-in-zone').value.trim();
+            const out_zone_time = document.getElementById('dep-out-zone').value.trim();
+            const arrival_time = document.getElementById('dep-arrival').value.trim();
+            
+            const collected_money = document.getElementById('dep-collected-money').value;
+            const record_date = document.getElementById('dep-record-date').value;
+
+            if ((record_time && !isValid24Time(record_time)) ||
+                (in_zone_time && !isValid24Time(in_zone_time)) ||
+                (out_zone_time && !isValid24Time(out_zone_time)) ||
+                (arrival_time && !isValid24Time(arrival_time))) {
+                alert("تکایە کاتەکان بە دروستی و بە شێوازی 24 سەعاتی (نموونە: 08:30 یان 14:00) بنووسە!");
+                return;
+            }
+
+            const newRecord = {
+                driver: driver || null,
+                distributor: distributor || null,
+                delegate: delegate || null,
+                zone: zone || null,
+                vehicle: vehicle || null,
+                cargo_weight: cargo_weight !== '' ? Number(cargo_weight) : 0,
+                pieces_count: pieces_count !== '' ? Number(pieces_count) : 0,
+                receipt_number: receipt_number !== '' ? Number(receipt_number) : 0,
+                record_date: record_date || new Date().toISOString().split('T')[0],
+                record_time: record_time || null,
+                in_zone_time: in_zone_time || null,
+                out_zone_time: out_zone_time || null,
+                arrival_time: arrival_time || null,
+                collected_money: collected_money !== '' ? Number(collected_money) : 0
+            };
+
+            const { error } = await supabaseClient
+                .from('delivery_records')
+                .insert([newRecord]);
+
+            if (error) {
+                console.error("هەڵە لە تۆمارکردن: ", error.message);
+                alert("هەڵە ڕوویدا لە تۆمارکردنی داتاکە بۆ سەپبەیس!");
+                return;
+            }
+
+            closeAllModals();
+            loadRecords();
+        }
+
         async function saveNewUser() {
             const username = document.getElementById('new-username').value.trim();
             const profession = document.getElementById('new-profession-select').value;
@@ -977,7 +1185,6 @@
                 return;
             }
 
-            alert("بەکارهێنەری نوێ بە سەرکەوتوویی تۆمارکرا!");
             closeAllModals();
             loadUsersData();
             loadUsersDataForDashboard();
@@ -1081,7 +1288,6 @@
                 return;
             }
 
-            alert("بەکارهێنەر بە سەرکەوتوویی سڕایەوە!");
             loadUsersData();
             loadUsersDataForDashboard();
         }
@@ -1268,28 +1474,14 @@
             let totalMoney = 0;
             let totalMinutesSum = 0;
 
-            let driverTripCounter = {};
-
             dataList.forEach(item => {
                 totalWeight += Number(item.cargo_weight || 0);
                 totalPieces += Number(item.pieces_count || 0);
                 totalMoney += Number(item.collected_money || 0);
 
-                let driverName = item.driver || 'نادیار';
-                if (!driverTripCounter[driverName]) {
-                    driverTripCounter[driverName] = 1;
-                } else {
-                    driverTripCounter[driverName]++;
-                }
-
-                let timeDiffText = '-';
-                if (driverTripCounter[driverName] === 1) {
-                    let mins = calculateTimeDiffInMinutes(item.arrival_time, startTime);
-                    totalMinutesSum += mins;
-                    timeDiffText = calculateTimeDiff(item.arrival_time, startTime);
-                } else {
-                    timeDiffText = ' ' + driverTripCounter[driverName] + ' (نییە)';
-                }
+                let mins = calculateTimeDiffInMinutes(item.arrival_time, startTime);
+                totalMinutesSum += mins;
+                let timeDiffText = calculateTimeDiff(item.arrival_time, startTime);
 
                 let actionTd = '';
                 if (isEditMode) {
@@ -1341,9 +1533,7 @@
             applyReportFilters();
         }
 
-        async function updateField(element, id, fieldName) {
-            let newValue = element.innerText.trim();
-            
+        async function updateFieldDirect(id, fieldName, newValue) {
             const item = allRecordsData.find(i => String(i.id) === String(id));
             if (item) {
                 item[fieldName] = newValue;
@@ -1359,6 +1549,11 @@
                 console.error("هەڵە لە نوێکردنەوەی داتا لە سەببەیس:", error.message);
                 alert("هەڵە ڕوویدا لە پاشەکەوتکردنی گۆڕانکارییەکە!");
             }
+        }
+
+        async function updateField(element, id, fieldName) {
+            let newValue = element.innerText.trim();
+            updateFieldDirect(id, fieldName, newValue);
         }
 
         async function moveToTrash(id) {
@@ -1453,7 +1648,6 @@
             document.body.removeChild(downloadLink);
         }
 
-        // زیادکردنی تایبەتمەندی فایلی داتاکان (Import Data File & Background Validation)
         function importDataFile() {
             document.getElementById('dataFilePicker').click();
         }
@@ -1471,7 +1665,6 @@
                     if (file.name.endsWith('.json')) {
                         importedData = JSON.parse(content);
                     } else {
-                        // تێگەیشتن لە فایلی CSV سادە ئەگەر درابێت
                         let lines = content.split('\n');
                         let headers = lines[0].split(',');
                         for (let i = 1; i < lines.length; i++) {
@@ -1486,14 +1679,11 @@
                     }
 
                     if (Array.isArray(importedData) && importedData.length > 0) {
-                        // هەڵگرتنی خێرا لە localStorage بۆ خێرا کارکردنی سیستەمەکە
                         allRecordsData = importedData;
                         localStorage.setItem('cached_delivery_records', JSON.stringify(importedData));
                         filterAndRenderRecords(importedData);
                         applyReportFilters();
-                        alert("فایلەکە بە سەرکەوتوویی بارکرا و داتاکان لە سیستەمەکەدا هەڵگیران!");
 
-                        // چێکردنەوەی ڕاستی و دروستی لە باکگراوند لەگەڵ سەببەیس (Supabase)
                         validateDataWithSupabaseBackground(importedData);
                     } else {
                         alert("فایلەکە هیچ داتایەکی دروستی تێدا نییە یان قاڵبەکەی هەڵەیە.");
@@ -1502,7 +1692,7 @@
                     console.error("هەڵە لە خوێندنەوەی فایل:", err);
                     alert("هەڵە ڕوویدا لە شیکردنەوەی فایلی داتاکان!");
                 }
-                event.target.value = ''; // سڕینەوەی بەندەکەی فایل بۆ ئەوەی دووبارە کاربکاتەوە
+                event.target.value = '';
             };
             reader.readAsText(file);
         }
@@ -1513,7 +1703,6 @@
                 if (error || !serverData) return;
 
                 let hasChanges = false;
-                // بەراوردکردنی سادە لەگەڵ سەببەیس
                 if (serverData.length !== localData.length) {
                     hasChanges = true;
                 } else {
@@ -1544,6 +1733,7 @@
                 .channel('public:delivery_records')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_records' }, payload => {
                     loadRecords();
+                    fetchNotifications();
                 })
                 .subscribe();
         }
@@ -1592,6 +1782,125 @@
             document.getElementById('detailsModal').style.display = 'none';
             document.getElementById('columnModal').style.display = 'none';
             document.getElementById('trashModal').style.display = 'none';
+            document.getElementById('departureModal').style.display = 'none';
+        }
+
+        function handleAutocomplete(type) {
+            const inputElement = document.getElementById(`dep-${type}-input`);
+            const dropdownList = document.getElementById(`dep-${type}-list`);
+            if (!inputElement || !dropdownList) return;
+
+            const query = inputElement.value.toLowerCase().trim();
+            dropdownList.innerHTML = '';
+
+            let items = [];
+            if (type === 'driver') {
+                items = allUsersData.filter(u => u.profession && (u.profession.includes('سایەق') || u.profession.includes('driver'))).map(u => u.username);
+            } else if (type === 'distributor') {
+                items = allUsersData.filter(u => u.profession && (u.profession.includes('دابەشکار') || u.profession.includes('distributor'))).map(u => u.username);
+            } else if (type === 'delegate') {
+                items = allUsersData.filter(u => u.profession && (u.profession.includes('مەندوب') || u.profession.includes('مندوب') || u.profession.includes('delegate'))).map(u => u.username);
+            } else if (type === 'zone') {
+                items = allZonesData.map(z => z.name);
+            } else if (type === 'vehicle') {
+                items = allVehiclesData.map(v => v.car_number);
+            }
+
+            const filteredItems = items.filter(val => (val || '').toLowerCase().includes(query));
+
+            if (filteredItems.length === 0) {
+                dropdownList.style.display = 'none';
+                return;
+            }
+
+            dropdownList.style.display = 'block';
+            filteredItems.forEach(val => {
+                const div = document.createElement('div');
+                div.textContent = val;
+                div.style.padding = '8px 12px';
+                div.style.fontSize = '13px';
+                div.style.cursor = 'pointer';
+                div.style.borderBottom = '1px solid #f0f0f5';
+                div.style.textAlign = 'right';
+
+                div.onmouseenter = function() { this.style.backgroundColor = '#f0f3ff'; this.style.color = '#0b2997'; };
+                div.onmouseleave = function() { this.style.backgroundColor = 'transparent'; this.style.color = '#333'; };
+
+                div.onclick = function() {
+                    inputElement.value = val;
+                    dropdownList.style.display = 'none';
+                };
+
+                dropdownList.appendChild(div);
+            });
+        }
+
+        async function fetchNotifications() {
+            const { data, error } = await supabaseClient
+                .from('driver_audit_logs')
+                .select('*')
+                .order('id', { ascending: false })
+                .limit(30);
+
+            if (error) {
+                console.error('هەڵە لە هێنانی ئاگادارکردنەوەکان', error);
+                return;
+            }
+
+            const badge = document.getElementById('notifBadge');
+            const notifList = document.getElementById('notifList');
+            
+            if (data && data.length > 0) {
+                const uniqueNotifications = [];
+                const seenSet = new Set();
+
+                data.forEach(item => {
+                    const identifier = `${item.username}_${item.notes}_${item.action_date}`;
+                    if (!seenSet.has(identifier)) {
+                        seenSet.add(identifier);
+                        uniqueNotifications.push(item);
+                    }
+                });
+
+                const lastSeenCount = parseInt(localStorage.getItem('last_seen_notif_count') || '0', 10);
+                const currentCount = uniqueNotifications.length;
+
+                badge.innerText = currentCount;
+
+                if (localStorage.getItem('notifications_opened') === 'true' && currentCount <= lastSeenCount) {
+                    badge.style.display = 'none';
+                } else {
+                    badge.style.display = 'inline-block';
+                }
+                
+                notifList.innerHTML = '';
+                uniqueNotifications.forEach(item => {
+                    notifList.innerHTML += `
+                        <div style="padding: 10px; border-bottom: 1px solid #f0f0f5;">
+                            <strong>بەکارهێنەر: ${item.username}</strong><br>
+                            <span style="color: #666; font-size: 11px;">بەروار و کات: ${new Date(item.action_date).toLocaleString()}</span><br>
+                            <p style="margin: 5px 0 0 0; color: #333;">${item.notes}</p>
+                        </div>
+                    `;
+                });
+            } else {
+                badge.style.display = 'none';
+                notifList.innerHTML = '<div style="padding: 15px; text-align: center; color: #777;">هیچ ئاگادارکردنەوەیەک نییە</div>';
+            }
+        }
+
+        function toggleNotifications() {
+            const dropdown = document.getElementById('notifDropdown');
+            const badge = document.getElementById('notifBadge');
+            
+            if (badge) {
+                badge.style.display = 'none';
+                badge.innerText = '0';
+                localStorage.setItem('notifications_opened', 'true');
+                localStorage.setItem('last_seen_notif_count', badge.innerText || '0');
+            }
+
+            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
         }
     </script>
 </body>
