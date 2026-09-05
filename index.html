@@ -900,6 +900,8 @@
 
     <!-- Supabase JS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- SheetJS (XLSX) CDN بۆ دروستکردنی فایلی ئێکسڵ بە چەند شیتێکەوە -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- jQuery CDN (پێویستە بۆ Select2) -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Select2 JS CDN -->
@@ -1625,27 +1627,80 @@
             }
         }
 
+        // دووگمەی ئێکسڵ کە بۆ هەر سایەق و دابەشکارێک شیتێکی سەربخۆ دروست دەکات بە زانیاری و تۆتاڵەکانیەوە
         function exportTableToExcel() {
-            let csv = [];
-            let rows = document.querySelectorAll(".data-table tr");
-            for (let i = 0; i < rows.length; i++) {
-                let row = [], cols = rows[i].querySelectorAll("td, th");
-                for (let j = 0; j < cols.length; j++) {
-                    if (cols[j].style.display !== 'none') {
-                        row.push('"' + cols[j].innerText + '"');
-                    }
-                }
-                csv.push(row.join(","));
+            if (typeof XLSX === 'undefined') {
+                alert("پەرتووکی ئێکسڵ بار نەکراوە، تکایە دڵنیابەوە لە هەبوونی هێڵی ئینتەرنێت.");
+                return;
             }
 
-            let csvFile = new Blob(["\uFEFF" + csv.join("\n")], { type: "text/csv;charset=utf-8;" });
-            let downloadLink = document.createElement("a");
-            downloadLink.download = "Delivery_Reports.csv";
-            downloadLink.href = window.URL.createObjectURL(csvFile);
-            downloadLink.style.display = "none";
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
+            // هێنانی ئەو یوسەرانەی کە پیشەکەیان سایەق یان دابەشکارە
+            const targetUsers = allUsersData.filter(u => {
+                const p = (u.profession || '').toLowerCase();
+                return p.includes('سایەق') || p.includes('دابەشکار') || p.includes('driver') || p.includes('distributor');
+            });
+
+            if (targetUsers.length === 0) {
+                alert("هیچ سایەق یان دابەشکارێک نەدۆزراوەتەوە لە سیستەمدا بۆ دروستکردنی شیت!");
+                return;
+            }
+
+            const wb = XLSX.utils.book_new();
+
+            targetUsers.forEach(user => {
+                const userName = user.username;
+                // گەڕان و هێنانی داتاکانی تایبەت بەو یوسەرە لە تەیبڵی delivery_records
+                const userRecords = allRecordsData.filter(item => 
+                    (item.driver && item.driver.trim() === userName.trim()) || 
+                    (item.distributor && item.distributor.trim() === userName.trim())
+                );
+
+                let sheetData = [
+                    ["ناوی سایەق", "دابەشکار", "مەندوب", "زۆن", "ئۆتۆمبێل", "کێشی بار", "پارچە", "ژ. وەسڵ", "بەروار", "کاتی تۆمار", "ناو زۆن", "دەرچوون لە زۆن", "گەشتنەوە", "پارەی هێنراوە"]
+                ];
+
+                let tWeight = 0, tPieces = 0, tMoney = 0;
+
+                userRecords.forEach(item => {
+                    tWeight += Number(item.cargo_weight || 0);
+                    tPieces += Number(item.pieces_count || 0);
+                    tMoney += Number(item.collected_money || 0);
+
+                    sheetData.push([
+                        item.driver || '-',
+                        item.distributor || '-',
+                        item.delegate || '-',
+                        item.zone || '-',
+                        item.vehicle || '-',
+                        item.cargo_weight ?? 0,
+                        item.pieces_count ?? 0,
+                        item.receipt_number ?? 0,
+                        item.record_date || '-',
+                        item.record_time || '-',
+                        item.in_zone_time || '-',
+                        item.out_zone_time || '-',
+                        item.arrival_time || '-',
+                        item.collected_money ?? 0
+                    ]);
+                });
+
+                // زیادکردنی ڕیزی تۆتاڵ وەک فۆڕمی ڕاپۆرت
+                sheetData.push([]);
+                sheetData.push(["کۆی گشتی", "", "", "", "", tWeight, tPieces, "", "", "", "", "", "", tMoney]);
+
+                const ws = XLSX.utils.aoa_to_sheet(sheetData);
+                
+                // پاککردنەوەی ناوی شیتەکە بۆ ئەوەی لە مەرجەکانی ئێکسڵ دەربچێت (ئەو پیتانەی قەدەغەن لاببرێن)
+                let safeSheetName = userName.replace(/[:\\\/?*\[\]]/g, "_");
+                if (safeSheetName.length > 31) {
+                    safeSheetName = safeSheetName.substring(0, 31);
+                }
+
+                XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+            });
+
+            // داواکردنی پاشەکەوتکردنی فایل لە ڕێگەی پۆپ‌آپی براوسەرەوە
+            XLSX.writeFile(wb, "Delivery_Reports_By_Users.xlsx");
         }
 
         function importDataFile() {
