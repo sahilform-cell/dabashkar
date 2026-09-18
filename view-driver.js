@@ -416,35 +416,19 @@ const DriverView = (() => {
       }
 
       let nextStage = null;
-<<<<<<< HEAD
-      let nextLabel = '';
-=======
->>>>>>> f7f99be (add new files)
       let nextActionTitle = '';
       let stageIcon = '';
 
       if (!active.in_zone_time) {
         nextStage = 'in_zone';
-<<<<<<< HEAD
-        nextLabel = 'لە ڕێگادایت بەرەو ناو زۆن';
-=======
->>>>>>> f7f99be (add new files)
         nextActionTitle = '📍 گەیشتمە ناو زۆن';
         stageIcon = '📍';
       } else if (!active.out_zone_time) {
         nextStage = 'out_zone';
-<<<<<<< HEAD
-        nextLabel = 'لە ناو زۆندایت؛ کاتی دەرچوون لە زۆن تۆمار بکە';
-=======
->>>>>>> f7f99be (add new files)
         nextActionTitle = '🚏 دەرچوون لە زۆن';
         stageIcon = '🚏';
       } else if (!active.arrival_time) {
         nextStage = 'arrival';
-<<<<<<< HEAD
-        nextLabel = 'لە ڕێگای گەڕانەوەدایت بەرەو کۆگا';
-=======
->>>>>>> f7f99be (add new files)
         nextActionTitle = '🏁 گەیشتمەوە بۆ خاڵی دەستپێک';
         stageIcon = '🏁';
       }
@@ -455,18 +439,10 @@ const DriverView = (() => {
         return;
       }
 
-<<<<<<< HEAD
-      const title = `${stageIcon} گەیاندن — ${active.zone || 'زۆن'}`;
-      const body = `${nextLabel}\n🚚 ${active.vehicle || '—'} • کاتی دەرچوون: ${active.record_time || '—'}`;
-
-      await reg.showNotification(title, {
-        body: body,
-=======
       // تەنها یەک دووگمە لەناو کارتی نۆتیفیکەیشن — بێ هیچ داتای زیادە
       const title = `${stageIcon} گەیاندن`;
 
       await reg.showNotification(title, {
->>>>>>> f7f99be (add new files)
         icon: './icon-192.png',
         badge: './icon-192.png',
         tag: 'active-trip-lockscreen',
