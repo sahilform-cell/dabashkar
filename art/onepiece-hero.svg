@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 760">
+  <defs>
+    <radialGradient id="op-glow" cx="50%" cy="40%" r="62%">
+      <stop offset="0%" stop-color="#f4c14f" stop-opacity=".22"/>
+      <stop offset="100%" stop-color="#f4c14f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="op-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b2d40"/>
+      <stop offset="100%" stop-color="#020c15"/>
+    </linearGradient>
+  </defs>
+  <circle cx="300" cy="340" r="300" fill="url(#op-glow)"/>
+  <g fill="url(#op-body)" stroke="#f4c14f" stroke-opacity=".15" stroke-width="2">
+    <!-- کڵاوی پوسکا -->
+    <ellipse cx="300" cy="152" rx="168" ry="42"/>
+    <path d="M192 144q6-74 108-74t108 74z"/>
+    <!-- سەر -->
+    <circle cx="300" cy="206" r="50"/>
+    <!-- تەنووڵە — جاکەتی کراوە -->
+    <path d="M238 256q62-24 124 0l16 148q-78 24-156 0z"/>
+    <!-- دەستەکان -->
+    <path d="M240 260q-46 40-40 116l32 8q-6-58 26-98z"/>
+    <path d="M360 260q46 40 40 116l-32 8q6-58-26-98z"/>
+    <circle cx="202" cy="388" r="22"/>
+    <circle cx="398" cy="388" r="22"/>
+    <!-- شەلوار -->
+    <path d="M244 402h112l-8 82h-36l-12-42-12 42h-36z"/>
+    <!-- قاچەکان -->
+    <path d="M258 484h32v182h-36z"/>
+    <path d="M310 484h32l4 182h-36z"/>
+    <ellipse cx="272" cy="672" rx="30" ry="13"/>
+    <ellipse cx="342" cy="670" rx="30" ry="13"/>
+  </g>
+  <!-- پەرەی سووری کڵاوەکە -->
+  <path d="M196 130q104 30 208 0l-2 16q-102 28-204 0z" fill="#c33a34" opacity=".92"/>
+  <!-- کەرەستەی ناوەوەی جاکەکە -->
+  <path d="M284 260l16 138 16-138q-16-6-32 0z" fill="#04121e"/>
+  <!-- زامناکی دەماری -->
+  <path d="M310 224l18 10" stroke="#c33a34" stroke-opacity=".6" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- شەپۆلی دەریا لە ژێر پێیاندا -->
+  <g fill="none" stroke="#7fd0f0" stroke-opacity=".18" stroke-width="3" stroke-linecap="round">
+    <path d="M60 726q30-18 60 0t60 0 60 0 60 0 60 0 60 0"/>
+    <path d="M100 752q30-16 60 0t60 0 60 0 60 0 60 0"/>
+  </g>
+</svg>

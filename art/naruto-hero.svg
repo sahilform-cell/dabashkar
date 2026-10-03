@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 760">
+  <defs>
+    <radialGradient id="nrt-glow" cx="50%" cy="35%" r="62%">
+      <stop offset="0%" stop-color="#ff8a2a" stop-opacity=".2"/>
+      <stop offset="100%" stop-color="#ff8a2a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="nrt-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1b2142"/>
+      <stop offset="100%" stop-color="#07091a"/>
+    </linearGradient>
+  </defs>
+  <circle cx="300" cy="330" r="300" fill="url(#nrt-glow)"/>
+  <g fill="url(#nrt-body)" stroke="#ff8a2a" stroke-opacity=".15" stroke-width="2">
+    <!-- قژی سکینی -->
+    <path d="M300 38l34-30 12 50 48-22-10 50 54 2-38 36 50 24-52 14 34 42-52-10 10 52-44-28-22 48-22-48-44 28 10-52-52 10 34-42-52-14 50-24-38-36 54-2-10-50 48 22z"/>
+    <!-- سەر -->
+    <circle cx="300" cy="196" r="54"/>
+    <!-- هێڵبەند (فۆرێهێد) -->
+    <rect x="234" y="146" width="132" height="26" rx="9"/>
+    <!-- تەنووڵە — جاکەتی نینجا -->
+    <path d="M238 258q62-24 124 0l18 158q-80 26-160 0z"/>
+    <!-- مل -->
+    <path d="M238 258l30 44-38 10z"/>
+    <path d="M362 258l-30 44 38 10z"/>
+    <!-- دەستەکان -->
+    <path d="M240 262q-46 40-40 116l32 8q-6-58 26-98z"/>
+    <path d="M360 262q46 40 40 116l-32 8q6-58-26-98z"/>
+    <!-- قاچەکان -->
+    <path d="M258 486h34v180h-38z"/>
+    <path d="M308 486h34l4 180h-38z"/>
+  </g>
+  <!-- پلەی هێڵبەندەکە -->
+  <rect x="272" y="142" width="56" height="34" rx="7" fill="#0b0f20" stroke="#ff8a2a" stroke-opacity=".5"/>
+  <path d="M300 152a10 10 0 1 1-10 10" fill="none" stroke="#ff8a2a" stroke-opacity=".55" stroke-width="2.5"/>
+  <!-- هێڵەکانی ڕوخسار -->
+  <g stroke="#ff8a2a" stroke-opacity=".4" stroke-width="2.5" fill="none" stroke-linecap="round">
+    <path d="M262 208h14M262 218h14M324 208h14M324 218h14"/>
+  </g>
+  <!-- نووسەرەی جاکە -->
+  <path d="M300 282v124" stroke="#ff8a2a" stroke-opacity=".3" stroke-width="2.5"/>
+</svg>

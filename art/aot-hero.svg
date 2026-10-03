@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 760">
+  <defs>
+    <radialGradient id="aot-glow" cx="50%" cy="35%" r="62%">
+      <stop offset="0%" stop-color="#9dbb63" stop-opacity=".17"/>
+      <stop offset="100%" stop-color="#9dbb63" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="aot-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#23251a"/>
+      <stop offset="100%" stop-color="#0c0d07"/>
+    </linearGradient>
+  </defs>
+  <circle cx="300" cy="330" r="300" fill="url(#aot-glow)"/>
+  <g fill="url(#aot-body)" stroke="#9dbb63" stroke-opacity=".13" stroke-width="2">
+    <!-- سەری تایتنە بەرزەکە -->
+    <path d="M300 70c100 0 158 62 158 150 0 64-28 112-64 134l8 46H198l8-46c-36-22-64-70-64-134 0-88 58-150 158-150z"/>
+    <!-- شان و سینگی زەبەلاح -->
+    <path d="M40 760c26-170 112-250 260-250s234 80 260 250z"/>
+  </g>
+  <!-- چاوە بەتاڵەکان — پڕاوپڕ بە تین -->
+  <ellipse cx="248" cy="238" rx="26" ry="15" fill="#0d0e08"/>
+  <ellipse cx="352" cy="238" rx="26" ry="15" fill="#0d0e08"/>
+  <ellipse cx="248" cy="238" rx="15" ry="7" fill="#9dbb63" opacity=".6"/>
+  <ellipse cx="352" cy="238" rx="15" ry="7" fill="#9dbb63" opacity=".6"/>
+  <!-- لووت -->
+  <path d="M300 248l-14 46h28z" fill="#0d0e08"/>
+  <!-- زمان و ددان -->
+  <path d="M215 322q85 52 170 0l-10 40q-75 44-150 0z" fill="#0d0e08"/>
+  <g stroke="#9dbb63" stroke-opacity=".3" stroke-width="2">
+    <path d="M240 336v26M265 344v28M290 350v30M315 350v30M340 344v28M365 336v26"/>
+  </g>
+  <!-- هێڵی ماسولکەکان -->
+  <g stroke="#9dbb63" stroke-opacity=".15" stroke-width="2" fill="none">
+    <path d="M130 640c40-60 90-92 150-102M470 640c-40-60-90-92-150-102"/>
+  </g>
+  <!-- هەڵم -->
+  <g fill="#eef0e0" opacity=".05">
+    <circle cx="120" cy="200" r="40"/><circle cx="88" cy="300" r="55"/>
+    <circle cx="500" cy="180" r="46"/><circle cx="532" cy="300" r="60"/>
+  </g>
+</svg>
