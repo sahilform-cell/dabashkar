@@ -30,7 +30,7 @@ const ProfessionsView = (() => {
             <h2 class="hero-title"><span class="sec-icon">${UI.icon('badge', 20)}</span> پیشەکان و دەسەڵاتەکان</h2>
             <p class="hero-sub">دروستکردنی پیشەی نوێ و دیاریکردنی ئەوەی هەر پیشەیەک و هەر یوسەرێک چی ببینێت و چ ئەنجام بدات</p>
           </div>
-          <button class="btn btn-ghost btn-sm" id="prf-refresh">⟳ نوێکردنەوە</button>
+          <button class="btn btn-ghost btn-sm" id="prf-refresh">${UI.icon("refresh", 14)} نوێکردنەوە</button>
         </div>
 
         <div class="admin-tabs" id="prf-subtabs">
@@ -81,7 +81,7 @@ const ProfessionsView = (() => {
         else renderUsersTab(wrap, ls);
       })
       .catch(err => {
-        wrap.innerHTML = `<div class="empty-state"><div class="empty-ico">⚠️</div><p>هەڵە لە هێنانی داتا: ${UI.esc(err.message)}</p></div>`;
+        wrap.innerHTML = `<div class="empty-state"><div class="empty-ico">${UI.icon('alert', 34)}</div><p>هەڵە لە هێنانی داتا: ${UI.esc(err.message)}</p></div>`;
       });
   }
 
@@ -99,7 +99,7 @@ const ProfessionsView = (() => {
           <h3 style="font-size:0.96rem"><span class="sec-icon">${UI.icon('badge')}</span> لیستی پیشەکان</h3>
           <button type="button" class="btn btn-primary btn-sm" id="prf-add-btn">${UI.icon('plus', 14)} پیشەی نوێ</button>
         </div>
-        <p class="hint" style="margin:0">کلیک لەسەر «دەسەڵاتەکان» بکە بۆ دیاریکردنی ئەوەی ئەم پیشەیە چی ببینێت و چ کردار ئەنجام بدات. بە دوگمەی 🗑 پیشەیەک دەسڕدرێتەوە یان دەشاردرێتەوە — بە هەمان ناو لە «پیشەی نوێ» دەگەڕێتەوە. گۆڕانکارییەکان بۆ هەموو مۆبایلەکان جێبەجێ دەبن پاش نوێبوونەوەی سیستەم.</p>
+        <p class="hint" style="margin:0">کلیک لەسەر «دەسەڵاتەکان» بکە بۆ دیاریکردنی ئەوەی ئەم پیشەیە چی ببینێت و چ کردار ئەنجام بدات. بە دووگمەی ${UI.icon('trash', 12)} پیشەیەک دەسڕدرێتەوە یان دەشاردرێتەوە — بە هەمان ناو لە «پیشەی نوێ» دەگەڕێتەوە. گۆڕانکارییەکان بۆ هەموو مۆبایلەکان جێبەجێ دەبن پاش نوێبوونەوەی سیستەم.</p>
       </section>
       <div class="prf-list">
         ${profs.map(p => professionCardHtml(p, customs, countOf(p))).join('')}
@@ -129,7 +129,7 @@ const ProfessionsView = (() => {
           </div>
           <div style="display:flex;gap:6px">
             ${isSup ? '' : `
-              <button type="button" class="btn btn-ghost btn-sm prf-perms-btn">🔐 دەسەڵاتەکان</button>
+              <button type="button" class="btn btn-ghost btn-sm prf-perms-btn">${UI.icon('key', 14)} دەسەڵاتەکان</button>
               <button type="button" class="btn btn-ghost btn-sm prf-del-btn" title="${isCustom ? 'سڕینەوەی پیشەکە' : 'شاردنەوەی پیشە بنەڕەتییەکە'}">${UI.icon('trash', 14)}</button>`}
           </div>
         </div>
@@ -240,7 +240,7 @@ const ProfessionsView = (() => {
         <div class="field" style="margin-bottom:0">
           <input type="search" id="prf-user-search" placeholder="گەڕان بۆ ناو یان پیشە..." value="${UI.esc(state.userSearch)}" autocomplete="off">
         </div>
-        <p class="hint" style="margin:6px 0 0">بە دووگمەی 🔐 دەسەڵاتەکان بۆ هەر یوسەرێک دەتوانیت دیاری بکەیت چی ببینێت و چ کردار ئەنجام بدات — لەوانەش بینینی داتای هەموو یوسەرانی تر لە ڕاپۆرتدا.</p>
+        <p class="hint" style="margin:6px 0 0">بە دووگمەی ${UI.icon('key', 12)} دەسەڵاتەکان بۆ هەر یوسەرێک دەتوانیت دیاری بکەیت چی ببینێت و چ کردار ئەنجام بدات — لەوانەش بینینی داتای هەموو یوسەرانی تر لە ڕاپۆرتدا.</p>
       </section>
       <div class="prf-list" id="prf-user-list"></div>`;
 
@@ -270,7 +270,7 @@ const ProfessionsView = (() => {
               <span class="chip">${UI.esc(u.profession || '—')}</span>
             </div>
           </div>
-          <button type="button" class="btn btn-ghost btn-sm prf-perms-btn">🔐 دەسەڵاتەکان</button>
+          <button type="button" class="btn btn-ghost btn-sm prf-perms-btn">${UI.icon('key', 14)} دەسەڵاتەکان</button>
         </div>`).join('') || '<div class="empty-state"><p>هیچ یوسەرێک نەدۆزرایەوە.</p></div>';
 
       listEl.querySelectorAll('.prf-user-card').forEach(card => {
@@ -304,13 +304,13 @@ const ProfessionsView = (() => {
         ${Perms.GROUPS.map(g => `
           <div class="prf-perm-group">
             <div class="prf-perm-group-head">
-              <b>${g.label}</b>
-              <span style="font-size:0.68rem;color:var(--muted)">بینین = 👁 • کردار = ⚡</span>
+              <b>${UI.icon(g.icon, 15)} ${UI.esc(g.label)}</b>
+              <span style="font-size:0.68rem;color:var(--muted)">${UI.icon('eye', 11)} بینین • ${UI.icon('bolt', 11)} کردار</span>
             </div>
             <div class="prf-perm-rows">
               ${Perms.FEATURES.filter(f => f.group === g.key).map(f => {
                 const val = Perms.effective(targetProf, isUserMode ? user.id : undefined, f.type, f.key);
-                const tag = f.icon ? UI.icon(f.icon, 13) : (f.type === 'view' ? UI.icon('eye', 13) : UI.icon('bolt', 13));
+                const tag = f.icon ? UI.icon(f.icon, 13) : UI.icon(f.type === 'view' ? 'eye' : 'bolt', 13);
                 return `
                 <label class="prf-perm-row">
                   <input type="checkbox" data-type="${f.type}" data-key="${f.key}" ${val ? 'checked' : ''}>
@@ -329,7 +329,7 @@ const ProfessionsView = (() => {
       actions: [
         { label: 'پاشگەزبوونەوە', className: 'btn-ghost', onClick: () => modal.close() },
         {
-          label: isUserMode ? '🗑 سڕینەوەی جیاوازی' : '⟲ گەڕانەوە بۆ بنەڕەت', className: 'btn-ghost', onClick: async () => {
+          label: isUserMode ? `${UI.icon('trash', 14)} سڕینەوەی جیاوازی` : `${UI.icon('refresh', 14)} گەڕانەوە بۆ بنەڕەت`, className: 'btn-ghost', onClick: async () => {
             const ok = await UI.confirmDialog(
               isUserMode
                 ? 'جیاوازییە تایبەتییەکانی ئەم یوسەرە دەسڕدرێتەوە و دەسەڵاتەکانی بەپێی پیشەکەی دەبێت. دڵنیاییت؟'
@@ -354,7 +354,7 @@ const ProfessionsView = (() => {
           }
         },
         {
-          label: '💾 پاشەکەوتکردن', className: 'btn-primary', onClick: async () => {
+          label: `${UI.icon('database', 14)} پاشەکەوتکردن`, className: 'btn-primary', onClick: async () => {
             const view = {}, act = {};
             body.querySelectorAll('input[type="checkbox"]').forEach(cb => {
               const t = cb.dataset.type, k = cb.dataset.key;

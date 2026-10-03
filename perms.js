@@ -52,11 +52,11 @@ const Perms = (() => {
   ];
 
   const GROUPS = [
-    { key: 'tabs',     label: '🧭 بینینی فۆڕمەکان' },
-    { key: 'trip',     label: '🚚 کردارەکانی گەشت' },
-    { key: 'reports',  label: '📊 ڕاپۆرت' },
-    { key: 'admin',    label: '🛡️ پانێلی بەڕێوەبردن' },
-    { key: 'settings', label: '⚙️ ڕێکخستن و ئەوانیتر' },
+    { key: 'tabs',     icon: 'globe',  label: 'بینینی فۆڕمەکان' },
+    { key: 'trip',     icon: 'truck',  label: 'کردارەکانی گەشت' },
+    { key: 'reports',  icon: 'chart',  label: 'ڕاپۆرت' },
+    { key: 'admin',    icon: 'shield', label: 'پانێلی بەڕێوەبردن' },
+    { key: 'settings', icon: 'gear',   label: 'ڕێکخستن و ئەوانیتر' },
   ];
 
   /* ---------------- بنەڕەتەکان — هەمان ڕەفتاری ئێستای سیستەم ---------------- */

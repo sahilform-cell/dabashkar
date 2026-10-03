@@ -152,6 +152,42 @@ const UI = (() => {
 
   /* ---------------- مۆدال ---------------- */
 
+  /* — دوگمەی گەڕانەوەی مۆبایل (Android back) —
+   * هەر ویندۆیەک کراوە بێت (مۆداڵ، کۆنفێرم، پانێلی نۆتیفیکەیشن، پڕ بە شاشە...):
+   * یەکەم گەڕانەوە تەنها ئەو دەخاتەوە، دووەم ئەوانی تر —
+   * ئەگەر هیچ ویندۆیەک نەمابێت، ڕەفتاری بنەڕەتی وێبگەڕەکە (دەرچوون لە ئەپ). */
+  const overlayStack = [];
+  let overlaySeq = 0;
+  let overlayPopConsuming = null;
+
+  function overlayRegister(closeFn) {
+    const id = ++overlaySeq;
+    overlayStack.push({ id, close: closeFn });
+    try { history.pushState({ dlvOverlay: id }, ''); } catch (_) {}
+    return id;
+  }
+
+  function overlayUnregister(id) {
+    const i = overlayStack.findIndex(o => o.id === id);
+    if (i !== -1) overlayStack.splice(i, 1);
+    // پاککردنەوەی دۆخی مێژووەکە — popstate دەیباتەوە بێ داخستنی دووبارەی ویندۆی خوارەوە
+    if (history.state && history.state.dlvOverlay === id) {
+      overlayPopConsuming = id;
+      try { history.back(); } catch (_) {}
+    }
+  }
+
+  window.addEventListener('popstate', e => {
+    const sid = e.state && e.state.dlvOverlay;
+    // ئەم popstate ـە بۆ پاککردنەوەی داخستنی UI خۆیەتی — ویندۆیەک مەداخە
+    if (overlayPopConsuming !== null && overlayPopConsuming === sid) { overlayPopConsuming = null; return; }
+    const top = overlayStack[overlayStack.length - 1];
+    if (top && top.id !== sid) {
+      overlayStack.pop();
+      top.close(true);
+    }
+  });
+
   function openModal({ title, titleIcon = null, body, actions = [], wide = false, size = '', onClose = null }) {
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
@@ -159,7 +195,7 @@ const UI = (() => {
     backdrop.innerHTML = `
       <div class="modal ${sizeClass}" role="dialog" aria-modal="true">
         <div class="modal-head">
-          <h3>${titleIcon ? `<span class="sec-icon">${icon(titleIcon, 18)}</span>` : ''}${esc(title)}</h3>
+          <h3>${titleIcon ? icon(titleIcon, 18) : ''}${esc(title)}</h3>
           <button class="icon-btn modal-close" type="button" aria-label="داخستن">✕</button>
         </div>
         <div class="modal-body"></div>
@@ -179,16 +215,28 @@ const UI = (() => {
       foot.appendChild(btn);
     });
 
-    const close = () => {
+    let histId = null;
+    let closed = false;
+    const doClose = () => {
       backdrop.classList.remove('open');
       setTimeout(() => backdrop.remove(), 220);
+      document.removeEventListener('keydown', onKey);
       if (onClose) onClose();
     };
-    backdrop.querySelector('.modal-close').addEventListener('click', close);
+    /* fromHistory = لە دوگمەی گەڕانەوەوە هاتووە — مێژووەکە پێشتر پاک کراوەتەوە */
+    const close = (fromHistory = false) => {
+      if (closed) return;
+      closed = true;
+      if (histId !== null && !fromHistory) overlayUnregister(histId);
+      doClose();
+    };
+    backdrop.querySelector('.modal-close').addEventListener('click', () => close());
     backdrop.addEventListener('mousedown', e => { if (e.target === backdrop) close(); });
     document.addEventListener('keydown', function onKey(e) {
-      if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); }
+      if (e.key === 'Escape') close();
     });
+
+    histId = overlayRegister(() => close(true));
 
     document.body.appendChild(backdrop);
     requestAnimationFrame(() => backdrop.classList.add('open'));
@@ -257,6 +305,8 @@ const UI = (() => {
       inputEl.value = it.label;
       hide();
       if (onSelect) onSelect(it);
+      // سلێکت و فوکەسی خانەکە یەکسەر لاببە — کیبۆردی تایبەتیش دادەخرێت
+      try { inputEl.blur(); } catch (_) {}
     }
 
     function update() {
@@ -315,7 +365,7 @@ const UI = (() => {
   /* ---------------- پەیوەندی — ویندۆی یوسەر و ئۆپشنەکانی ژمارە تەلەفۆن ---------------- */
 
   // ئایکۆنەکانی ئەپ — شێوەی squircle ی تاریک بە ئایکۆنی سپی (One UI)
-  /** ئایکۆنی تەلەفۆن — بەپێی ڕووکاری چالاک دەگۆڕدرێت (وەن پیس: دین دین موشی) */
+  /** ئایکۆنی تەلەفۆن — لە کتێبخانەی ناوەندییەوە (بە span.sys-ico — شاردنەوە ئەگەر ئۆپشن ناچالاک بێت) */
   const PHONE_SVG = () => icon('phone', 15);
   const WHATSAPP_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>';
   const TELEGRAM_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2.53 11.72 22.2 3.09c.86-.38 1.79.44 1.55 1.36l-3.1 12.02c-.2.78-1.1 1.12-1.76.68l-3.95-2.63-1.98 1.94c-.5.5-1.36.29-1.57-.38l-1.24-3.98-3.99-1.25c-.73-.23-.75-1.28-.03-1.55z"/></svg>';
@@ -359,7 +409,8 @@ const UI = (() => {
         </a>
       </div>`;
     const { close } = openModal({
-      title: icon('phone', 18) + ' ' + toLatinDigits(raw),
+      title: toLatinDigits(raw),
+      titleIcon: 'phone',
       body,
       actions: [{ label: 'داخستن', className: 'btn-ghost', onClick: () => close() }],
     });
@@ -388,14 +439,15 @@ const UI = (() => {
           <div class="ups-meta">
             <h3>${esc(user.username)}</h3>
             <span class="chip">${esc(user.profession || '—')}</span>
-            ${loc ? `<span class="ups-loc">📍 ${esc(loc)}</span>` : ''}
+            ${loc ? `<span class="ups-loc">${icon('pin', 13)} ${esc(loc)}</span>` : ''}
           </div>
         </div>
         <div class="ups-phones">${phoneBtns}</div>
       </div>`;
 
     const { close, backdrop } = openModal({
-      title: '👤 زانیاری بەکارهێنەر',
+      title: 'زانیاری بەکارهێنەر',
+      titleIcon: 'user',
       body,
       actions: [{ label: 'داخستن', className: 'btn-ghost', onClick: () => close() }],
     });
@@ -474,12 +526,13 @@ const UI = (() => {
       <div class="crop-tools">
         <button type="button" class="icon-btn" id="crop-zin" title="نزیککردنەوە">＋</button>
         <button type="button" class="icon-btn" id="crop-zout" title="دوورخستنەوە">－</button>
-        <button type="button" class="icon-btn" id="crop-reset" title="گەڕانەوە">⟲</button>
+        <button type="button" class="icon-btn" id="crop-reset" title="گەڕانەوە">${UI.icon("refresh", 15)}</button>
       </div>
       <p class="hint">بە بارکردن و ڕاکێشان جێگۆڕکێ بکە — بە دوو پەنجە یان چەرخی ماوس زووم بکە.</p>`;
 
     const { close } = openModal({
-      title: '📷 ڕێکخستنی وێنەی پڕۆفایل',
+      title: 'ڕێکخستنی وێنەی پڕۆفایل',
+      titleIcon: 'camera',
       body,
       wide: true,
       actions: [
@@ -644,6 +697,14 @@ const UI = (() => {
     bulb: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
     columns: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="12" x2="12" y1="3" y2="21"/>',
     globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    'eye-off': '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/>',
+    clipboard: '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+    image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+    folderOpen: '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>',
+    ruler: '<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>',
+    moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
     plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
     trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
     edit: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>',
@@ -661,36 +722,15 @@ const UI = (() => {
     key: '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>',
     bolt: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
     trophy: '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
-    /* — ئایکۆنە ئەنیمەییەکان — بەپێی ڕووکاری گشتی جێگەری ئایکۆنە ئاساییەکان دەگرنەوە — */
-    ship: '<path d="M3 15h18l-2.3 4.1a2 2 0 0 1-1.74 1H7.04a2 2 0 0 1-1.74-1L3 15z"/><path d="M12 13V3"/><path d="M12 4.5c3.2 1.1 5.3 3.4 6 6.7l-6-1.2z"/><path d="M12 6.5c-2.5.8-4.4 2.6-5.3 5l5.3-.9z"/><path d="m12 3.2 3 1-3 1z"/>',
-    dendenmushi: '<path d="M9.5 19c-3.2 0-5.8-1.3-5.8-3.1 0-1.4 1.3-2.5 3.1-2.6"/><circle cx="12" cy="13" r="5.5"/><path d="M12 13a2.3 2.3 0 1 1 2.3-2.3"/><path d="M7.2 13.4 5.6 9.6"/><path d="M9.8 12.6 9.3 8.8"/><circle cx="5.5" cy="9.2" r=".45" fill="currentColor" stroke="none"/><circle cx="9.2" cy="8.4" r=".45" fill="currentColor" stroke="none"/><path d="M3.5 19h17"/>',
-    jollyroger: '<path d="M7.8 8.6c.2-2.8 1.9-4.6 4.2-4.6s4 1.8 4.2 4.6"/><path d="M5.6 8.8c4.2 1.4 8.6 1.4 12.8 0"/><path d="M8 10.5c0-1.8 1.8-3 4-3s4 1.2 4 3c0 1.4-.7 2.5-1.8 3.2v2.3h-4.4v-2.3C8.7 13 8 11.9 8 10.5z"/><circle cx="10.6" cy="10.6" r=".9" fill="currentColor" stroke="none"/><circle cx="13.4" cy="10.6" r=".9" fill="currentColor" stroke="none"/><path d="m6.5 21 11-3.4"/><path d="m17.5 21-11-3.4"/>',
-    treasuremap: '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 18"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/><path d="m16.6 10.6 2.4 2.4m0-2.4-2.4 2.4"/>',
-    chest: '<rect x="3" y="10" width="18" height="9" rx="1.5"/><path d="M3 10c0-3.3 4-5.5 9-5.5s9 2.2 9 5.5"/><path d="M12 10v3"/><circle cx="12" cy="15" r="1.2"/>',
-    wheel: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5V8.8M12 15.2v5.3M3.5 12h5.3M15.2 12h5.3M6 6l4.2 4.2M13.8 13.8 18 18M18 6l-4.2 4.2M10.2 13.8 6 18"/>',
-    anchor: '<circle cx="12" cy="5" r="2.5"/><line x1="12" x2="12" y1="7.5" y2="21"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/>',
-    swords: '<polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 10"/><line x1="5" x2="9" y1="14" y2="10"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="7" y1="19" y2="15"/>',
-    wings: '<path d="M12 4c-3.5 1.5-6 4.5-7 9 3-.5 5.5-2 7-4 1.5 2 4 3.5 7 4-1-4.5-3.5-7.5-7-9z"/><path d="M12 10.5c-.8 3.2-.5 6.5 1 9.5"/><path d="M12 10.5c.8 3.2.5 6.5-1 9.5"/>',
-    konoha: '<path d="M11.5 4.5A7.5 7.5 0 1 1 4 12"/><path d="M11.5 8A4 4 0 1 1 8 11.5"/><path d="M11.5 4.5 14.2 7.3 10.9 8.4z" fill="currentColor" stroke="none"/>',
-    scroll: '<path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/>',
-    shuriken: '<path d="M12 2l2.3 7.7L22 12l-7.7 2.3L12 22l-2.3-7.7L2 12l7.7-2.3z"/><circle cx="12" cy="12" r="1.6"/>',
-  };
-
-  /* — گۆڕینی ئایکۆنەکان بەپێی جیهانی ئەنیمە — کاتێک رووکاری گشتی چالاک بێت — */
-  const ANIME_ICON_SWAPS = {
-    onepiece: { truck: 'ship', phone: 'dendenmushi', smartphone: 'dendenmushi', shield: 'jollyroger', map: 'treasuremap', package: 'chest', gear: 'wheel', enter: 'anchor' },
-    aot: { truck: 'swords', shield: 'wings' },
-    naruto: { truck: 'shuriken', shield: 'konoha', package: 'scroll' },
+    download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
   };
 
   /** ئایکۆنی SVG بە ناو — بۆ تایتڵ و دووگمەکان؛ ڕەنگەکەی لە دەقی دەوروبەری دەگرێت.
-   *  ئەگەر رووکاری ئەنیمە چالاک بێت، ئایکۆنەکانی ئەو جیهانە جێگەری ئەسڵییەکان دەگرنەوە. */
+   *  هەموو ئایکۆنەکان بە span.sys-ico پێچراونەتەوە — بۆ ئەوەی ئۆپشنی «پشاندانی ئایکۆنەکان»
+   *  بە تەواوی کار بکات و هەموویان بشاردرێتەوە/پیشان بدرێن. */
   function icon(name, size = 17) {
-    const anime = document.documentElement ? document.documentElement.dataset.anime : null;
-    const swaps = anime ? ANIME_ICON_SWAPS[anime] : null;
-    const finalName = (swaps && swaps[name]) || name;
-    const p = ICON_PATHS[finalName] || ICON_PATHS.info;
-    return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+    const p = ICON_PATHS[name] || ICON_PATHS.info;
+    return `<span class="sys-ico"><svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg></span>`;
   }
 
   function norm(s) {
@@ -860,44 +900,37 @@ const UI = (() => {
     `;
 
     const actions = [];
+    let closeRef = null;
+    const closeAnd = fn => { if (closeRef) closeRef(); if (fn) fn(rec); };
     const hasCustom = typeof onEdit === 'function' || typeof onDelete === 'function';
     if (typeof onEdit === 'function') {
       actions.push({
-        label: '✏️ دەستکاری داتا',
+        label: `${icon('edit', 14)} دەستکاری داتا`,
         className: 'btn-primary',
-        onClick: backdrop => {
-          backdrop.classList.remove('open');
-          setTimeout(() => backdrop.remove(), 220);
-          onEdit(rec);
-        }
+        onClick: () => closeAnd(onEdit)
       });
     }
     actions.push({
       label: 'داخستن',
       className: hasCustom ? 'btn-ghost' : 'btn-primary',
-      onClick: backdrop => {
-        backdrop.classList.remove('open');
-        setTimeout(() => backdrop.remove(), 220);
-      }
+      onClick: () => closeAnd(null)
     });
     if (typeof onDelete === 'function') {
       actions.push({
-        label: '🗑️ سڕینەوە',
+        label: icon('trash', 14) + ' سڕینەوە',
         className: 'btn-danger',
-        onClick: backdrop => {
-          backdrop.classList.remove('open');
-          setTimeout(() => backdrop.remove(), 220);
-          onDelete(rec);
-        }
+        onClick: () => closeAnd(onDelete)
       });
     }
 
-    return openModal({
+    const m = openModal({
       title: `وردەکاریی تۆمار — ${rec.zone || 'گەشت'}`,
       size: 'wide',
       body,
       actions
     });
+    closeRef = m.close;
+    return m;
   }
 
   /** چاوەڕوانی ماکڕۆتاسک */
@@ -943,7 +976,7 @@ const UI = (() => {
 
   /* ---------------- کیبۆردی تایبەتی سیستەم ---------------- */
 
-  const keypad = { el: null, input: null, layout: null };
+  const keypad = { el: null, input: null, layout: null, userLayout: null, suppressClick: false };
   const KURDISH_KEY_ROWS = [
     ['ئ', 'ا', 'ب', 'پ', 'ت', 'ج', 'چ', 'ح', 'خ'],
     ['د', 'ر', 'ڕ', 'ز', 'ژ', 'س', 'ش', 'ع', 'غ'],
@@ -952,6 +985,9 @@ const UI = (() => {
   ];
 
   const coarsePointer = () => window.matchMedia('(pointer: coarse)').matches;
+
+  /** لەرزەی نەرم بۆ کلیلەکان — تەنها لەسەر ئامێری پشتگیریکراو */
+  const haptic = () => { try { navigator.vibrate && navigator.vibrate(8); } catch (_) {} };
 
   /* هەر جۆرێکی کیبۆرد ڕێکخستنی جیای خۆی هەیە — پیت و ژمارە بە جیا ئۆن/ئۆف دەکرێن */
   const keypadEnabledFor = t => {
@@ -993,13 +1029,13 @@ const UI = (() => {
   function keypadMarkup(layout) {
     const key = (k, label, cls = '') => `<button type="button" class="${cls}" data-k="${k}" tabindex="-1">${label}</button>`;
     const charKey = char => `<button type="button" class="kp-letter" data-k="char" data-char="${char}" tabindex="-1">${char}</button>`;
-    /* کیبۆردی پیت — تەنها بۆ خانەکانی دەق */
+    /* کیبۆردی پیت — تەنها بۆ خانەکانی دەق — بە دوگمەی ١٢٣ دەگوازرێتەوە بۆ ژمارە */
     if (layout === 'text') {
       return `
         <div class="kp-text-layout">
           ${KURDISH_KEY_ROWS.map(row => `<div class="kp-row">${row.map(charKey).join('')}</div>`).join('')}
           <div class="kp-row kp-controls">
-            ${key('space', 'بۆشایی', 'kp-space')}${key('del', '⌫', 'kp-del')}${key('done', '✓', 'kp-done')}
+            ${key('toggle-num', '١٢٣', 'kp-toggle')}${key('space', 'بۆشایی', 'kp-space')}${key('del', '⌫', 'kp-del')}${key('done', '✓', 'kp-done')}
           </div>
         </div>`;
     }
@@ -1009,7 +1045,7 @@ const UI = (() => {
         ${key('7', '7')}${key('8', '8')}${key('9', '9')}${key('del', '⌫', 'kp-del')}
         ${key('4', '4')}${key('5', '5')}${key('6', '6')}${key('+', '+', 'kp-op')}
         ${key('1', '1')}${key('2', '2')}${key('3', '3')}${key('minus', '−', 'kp-op')}
-        ${key('0', '0', 'kp-zero')}${key('clear', 'C', 'kp-clear')}${key('done', '✓', 'kp-done')}
+        ${key('toggle-text', 'ئ', 'kp-toggle')}${key('0', '0')}${key('clear', 'C', 'kp-clear')}${key('done', '✓', 'kp-done')}
       </div>`;
   }
 
@@ -1035,16 +1071,41 @@ const UI = (() => {
     el.addEventListener('click', e => {
       const btn = e.target.closest('button[data-k]');
       if (!btn) return;
+      /* پاش لۆنگ-پرێسی سڕینەوە، کلیکی ئاسایی پشتگوێ دەخرێت */
+      if (keypad.suppressClick) { keypad.suppressClick = false; return; }
       const inp = keypad.input;
       if (!inp || !inp.isConnected) { closeKeypad(); return; }
       const k = btn.dataset.k;
       if (k === 'done') { closeKeypad(); inp.blur(); return; }
-      if (k === 'del') { deleteKeypadText(inp); return; }
-      if (k === 'clear') { updateKeypadInput(inp, '', 0); return; }
-      if (k === 'space') { insertKeypadText(inp, ' '); return; }
-      if (k === 'char') { insertKeypadText(inp, btn.dataset.char); return; }
+      if (k === 'del') { deleteKeypadText(inp); haptic(); return; }
+      if (k === 'clear') { updateKeypadInput(inp, '', 0); haptic(); return; }
+      if (k === 'space') { insertKeypadText(inp, ' '); haptic(); return; }
+      if (k === 'char') { insertKeypadText(inp, btn.dataset.char); haptic(); return; }
+      if (k === 'toggle-num') { keypad.userLayout = 'numeric'; renderKeypad('numeric'); return; }
+      if (k === 'toggle-text') { keypad.userLayout = 'text'; renderKeypad('text'); return; }
       insertKeypadText(inp, k === 'minus' ? '-' : k);
+      haptic();
     });
+
+    /* ڕاگرتنی درێژ لەسەر ⌫ — سڕینەوەی بەردەوام وەک کیبۆردە ڕەسەنەکان */
+    let delHold = null, delRepeat = null;
+    const stopDelHold = () => { clearTimeout(delHold); clearInterval(delRepeat); delHold = delRepeat = null; };
+    el.addEventListener('pointerdown', e => {
+      const btn = e.target.closest('button[data-k="del"]');
+      if (!btn) return;
+      delHold = setTimeout(() => {
+        keypad.suppressClick = true;
+        delRepeat = setInterval(() => {
+          if (!keypad.input || !keypad.input.isConnected) { stopDelHold(); return; }
+          deleteKeypadText(keypad.input);
+        }, 55);
+      }, 420);
+      const cancel = () => stopDelHold();
+      btn.addEventListener('pointerup', cancel, { once: true });
+      btn.addEventListener('pointerleave', cancel, { once: true });
+      btn.addEventListener('pointercancel', cancel, { once: true });
+    });
+
     document.body.appendChild(el);
     return el;
   }
@@ -1082,12 +1143,13 @@ const UI = (() => {
     if (!keypad.el) keypad.el = buildKeypadEl();
     const changedField = keypad.input !== inp;
     keypad.input = inp;
+    if (changedField) keypad.userLayout = null; // هەڵبژاردنی پیت/ژمارەی بەکارهێنەر تەنها بۆ هەمان خانە
     if (!inp.dataset.kpReadonly) {
       inp.dataset.kpReadonly = '1';
       inp.readOnly = true;
     }
     if (changedField || !keypad.el.classList.contains('open')) {
-      renderKeypad(isNumericKeypadField(inp) ? 'numeric' : 'text');
+      renderKeypad(keypad.userLayout || (isNumericKeypadField(inp) ? 'numeric' : 'text'));
     }
     keypad.el.classList.add('open');
     syncKeypadSpace();
@@ -1102,30 +1164,58 @@ const UI = (() => {
       }
       keypad.input = null;
       keypad.layout = null;
+      keypad.userLayout = null;
     }
     if (keypad.el) keypad.el.classList.remove('open');
     document.body.classList.remove('keypad-open');
     document.body.style.removeProperty('--kp-h');
   }
 
+  /* — کردنەوەی کیبۆرد: تەنها بە داگرتنی ڕاستەقینە (تاپ).
+   * سکڕۆڵ یان ڕاکێشان کە دەست لەسەر خانەیەک دەست پێدەکات، کیبۆرد ناکاتەوە —
+   * ئەمە چارەسەری کێشەی سەرەکییە: پێشتر بە هەر دەستلێدانێک دەکرایەوە. */
+  let kpLastTouchMove = 0;
+  document.addEventListener('touchmove', () => { kpLastTouchMove = Date.now(); }, { capture: true, passive: true });
+
+  let kpPress = null;
+
+  document.addEventListener('pointerdown', e => {
+    const t = e.target;
+    // ئەگەر خانەکەی ناو کیبۆردەکە لابراوە (مۆداڵ داخراوە یان ڕایگۆڕدراوە) — دادەخرێت
+    if (keypad.input && !keypad.input.isConnected) { closeKeypad(); return; }
+    const onField = isKeypadField(t) && keypadEnabledFor(t);
+    if (onField) {
+      // تۆمارکردنی دەستپێک — لە pointerup ـدا دەزانین داگرتن بوو یان سکڕۆڵ
+      kpPress = { x: e.clientX, y: e.clientY, time: Date.now(), id: e.pointerId, target: t };
+      return;
+    }
+    // دەست لە دەرەوەی کیبۆرد و لەسەر هیچ خانەیەکی چالاک نییە → دادەخرێت
+    if (keypad.input && keypad.el && !keypad.el.contains(t)) closeKeypad();
+  }, true);
+
+  document.addEventListener('pointerup', e => {
+    if (!kpPress || e.pointerId !== kpPress.id) return;
+    const press = kpPress;
+    kpPress = null;
+    const moved = Math.hypot(e.clientX - press.x, e.clientY - press.y);
+    const isTap = moved < 12 && (Date.now() - press.time) < 650;
+    if (!isTap) return; // سکڕۆڵ یان ڕاکێشان بوو — کیبۆرد ناکرێتەوە
+    const t = press.target;
+    if (t.isConnected && isKeypadField(t) && keypadEnabledFor(t)) openKeypad(t);
+  }, true);
+  document.addEventListener('pointercancel', () => { kpPress = null; }, true);
+
   document.addEventListener('focusin', e => {
     const t = e.target;
     if (keypad.input && keypad.input !== t) closeKeypad();
+    // ئەگەر سکڕۆڵ بە مەبەست دەستی پێکردبێت، فۆکەسی خانەکە پشتگوێ دەخرێت
+    if (Date.now() - kpLastTouchMove < 250) return;
     if (isKeypadField(t) && keypadEnabledFor(t)) openKeypad(t);
   });
 
   document.addEventListener('focusout', e => {
     if (keypad.input === e.target) closeKeypad();
   });
-
-  document.addEventListener('pointerdown', e => {
-    const t = e.target;
-    if (isKeypadField(t) && keypadEnabledFor(t)) {
-      openKeypad(t);
-      return;
-    }
-    if (keypad.input && keypad.el && !keypad.el.contains(t)) closeKeypad();
-  }, true);
 
   /* ---- ئامرازی + / − لەسەر ئایۆئێس بۆ کاتێک کیبۆردی ژمارەیی سیستەم کراوەیە ---- */
   /* بەتەنها کار دەکات لەسەر ئایۆئێس (webkit-touch-callout) و customKeypadNum ناچالاکە */
@@ -1309,16 +1399,26 @@ const UI = (() => {
       <div class="notif-panel-backdrop"></div>
       <div class="notif-drawer">
         <div class="notif-drawer-head">
-          <h3>🔔 نۆتیفیکەیشنەکان</h3>
+          <h3>${icon('bell', 17)} نۆتیفیکەیشنەکان</h3>
           <button class="btn btn-ghost btn-sm" data-notif-close type="button">✕ داخستن</button>
         </div>
         <div class="notif-drawer-body">
-          <div class="notif-empty"><span class="notif-empty-ico">⏳</span>بارکردن...</div>
+          <div class="notif-empty"><span class="notif-empty-ico">${icon('clock', 20)}</span>بارکردن...</div>
         </div>
       </div>`;
 
     document.body.appendChild(overlay);
-    const close = () => overlay.remove();
+    /* دوگمەی گەڕانەوەی مۆبایل — یەکەم گەڕانەوە پانێلەکە داخستن دەکات */
+    let notifHistId = null;
+    let notifClosed = false;
+    const doClosePanel = () => overlay.remove();
+    const close = () => {
+      if (notifClosed) return;
+      notifClosed = true;
+      if (notifHistId !== null) overlayUnregister(notifHistId);
+      doClosePanel();
+    };
+    notifHistId = overlayRegister(doClosePanel);
     overlay.querySelector('.notif-panel-backdrop').addEventListener('click', close);
     overlay.querySelector('[data-notif-close]').addEventListener('click', close);
 
@@ -1327,7 +1427,7 @@ const UI = (() => {
     try {
       notifs = await fetchVisibleNotifications();
     } catch (err) {
-      bodyEl.innerHTML = `<div class="notif-empty"><span class="notif-empty-ico">⚠️</span>هەڵە لە هێنانی نۆتیفیکەیشنەکان: ${esc(err.message)}</div>`;
+      bodyEl.innerHTML = `<div class="notif-empty"><span class="notif-empty-ico">${icon('alert', 20)}</span>هەڵە لە هێنانی نۆتیفیکەیشنەکان: ${esc(err.message)}</div>`;
       return;
     }
 
@@ -1336,7 +1436,7 @@ const UI = (() => {
     document.dispatchEvent(new CustomEvent('dlv-notif-seen'));
 
     if (!notifs.length) {
-      bodyEl.innerHTML = `<div class="notif-empty"><span class="notif-empty-ico">🔔</span>هیچ نۆتیفیکەیشنێک نییە</div>`;
+      bodyEl.innerHTML = `<div class="notif-empty"><span class="notif-empty-ico">${icon('bell', 20)}</span>هیچ نۆتیفیکەیشنێک نییە</div>`;
       return;
     }
 

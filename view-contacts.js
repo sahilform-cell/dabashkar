@@ -41,7 +41,7 @@ const ContactsView = (() => {
         <section class="card filter-card">
           <div class="admin-header-row" style="margin-bottom:6px">
             <h3 style="font-size:0.96rem"><span class="sec-icon">${UI.icon('phone')}</span> پەیوەندییەکان</h3>
-            <button type="button" class="btn btn-ghost btn-sm" id="ct-refresh" title="نوێکردنەوەی لیست">${UI.icon('refresh', 14)} نوێکردنەوە</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="ct-refresh" title="نوێکردنەوەی لیست">${UI.icon("refresh", 14)} نوێکردنەوە</button>
           </div>
           <div class="field" style="margin-bottom:0">
             <input type="search" id="ct-search" placeholder="گەڕان بۆ ناو، پیشە، شوێن یان ژمارەی تەلەفۆن..." autocomplete="off" value="${UI.esc(state.search)}">
@@ -84,7 +84,7 @@ const ContactsView = (() => {
         if (!users.length) {
           wrap.innerHTML = `
             <div class="empty-state">
-              <div class="empty-ico">📵</div>
+              <div class="empty-ico">${UI.icon("phone", 34)}</div>
               <p>${q ? 'هیچ یوسەرێک نەدۆزرایەوە بۆ ئەم گەڕانە.' : 'هیچ یوسەرێک تۆمار نەکراوە.'}</p>
             </div>`;
           return;
@@ -116,7 +116,7 @@ const ContactsView = (() => {
       .catch(err => {
         wrap.innerHTML = `
           <div class="empty-state">
-            <div class="empty-ico">⚠️</div>
+            <div class="empty-ico">${UI.icon("alert", 34)}</div>
             <p>هەڵە لە هێنانی لیستی یوسەران: ${UI.esc(err.message)}</p>
           </div>`;
       });
@@ -130,7 +130,7 @@ const ContactsView = (() => {
         <div class="ct-info">
           <strong class="ct-name">${UI.esc(u.username)}</strong>
           <span class="chip ct-prof">${UI.esc(u.profession || '—')}</span>
-          ${u.location ? `<span class="ct-loc">📍 ${UI.esc(u.location)}</span>` : ''}
+          ${u.location ? `<span class="ct-loc">${UI.icon("pin", 13)} ${UI.esc(u.location)}</span>` : ''}
         </div>
         <div class="ct-phones">
           ${phones.length

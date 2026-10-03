@@ -11,16 +11,15 @@ const App = (() => {
 
   const isSupervisor = u => u && (u.profession === CONFIG.PROFESSION_SUPERVISOR || u.profession === 'بەڕێوبەر' || u.profession === 'بەریوبەر');
 
-  /* ---------------- ئایکۆنەکانی تاب — ناوەکانیان لە کتێبخانەی UI.icon ـەوە دێت
-   *  (کاتێک رووکاری ئەنیمە بگۆڕدرێت، ئایکۆنەکان لە renderNav ـەوە نوێ دەبنەوە) ---------------- */
+  /* ---------------- ئایکۆنەکانی تاب — لە کتێبخانە ناوەندییەکەوە (UI.icon) ---------------- */
 
-  const TAB_ICONS = {
-    driver: 'truck',
-    reports: 'chart',
-    contacts: 'phone',
-    admin: 'shield',
-    settings: 'gear',
-    professions: 'badge',
+  const ICONS = {
+    truck: UI.icon('truck', 22),
+    chart: UI.icon('chart', 22),
+    shield: UI.icon('shield', 22),
+    gear: UI.icon('gear', 22),
+    phone: UI.icon('phone', 22),
+    badge: UI.icon('badge', 22),
   };
 
   function defineTabs() {
@@ -28,35 +27,35 @@ const App = (() => {
     // تابی کارەکان هەمیشە دروست دەکرێت — بینینی بە دەسەڵاتەکان دیاری دەکرێت
     // (بنەڕەت: سایەق، دابەشکار و یاریدەدەر؛ دەکرێت بۆ پیشەی تر چالاک بکرێت لە فۆڕمی پیشە)
     TABS.push({
-      id: 'driver', label: 'کارەکان', icon: TAB_ICONS.driver, roles: 'ALL',
+      id: 'driver', label: 'کارەکان', icon: ICONS.truck, roles: 'ALL',
       render: el => DriverView.render(el),
       onDeactivate: () => DriverView.stop(),
     });
     TABS.push({
-      id: 'reports', label: 'ڕاپۆرت', icon: TAB_ICONS.reports, roles: 'ALL',
+      id: 'reports', label: 'ڕاپۆرت', icon: ICONS.chart, roles: 'ALL',
       render: el => ReportsView.render(el),
       onDeactivate: () => ReportsView.stop(),
     });
     TABS.push({
-      id: 'contacts', label: 'پەیوەندی', icon: TAB_ICONS.contacts, roles: 'ALL',
+      id: 'contacts', label: 'پەیوەندی', icon: ICONS.phone, roles: 'ALL',
       render: el => ContactsView.render(el),
       onDeactivate: () => ContactsView.stop && ContactsView.stop(),
     });
     if (isSupervisor(currentUser)) {
       TABS.push({
-        id: 'admin', label: 'بەڕێوەبردن', icon: TAB_ICONS.admin, roles: 'ALL',
+        id: 'admin', label: 'بەڕێوەبردن', icon: ICONS.shield, roles: 'ALL',
         render: el => AdminView.render(el),
         onDeactivate: () => AdminView.stop(),
       });
     }
     TABS.push({
-      id: 'settings', label: 'ڕێکخستن', icon: TAB_ICONS.settings, roles: 'ALL',
+      id: 'settings', label: 'ڕێکخستن', icon: ICONS.gear, roles: 'ALL',
       render: el => SettingsView.render(el),
       onDeactivate: () => SettingsView.stop(),
     });
     if (isSupervisor(currentUser)) {
       TABS.push({
-        id: 'professions', label: 'پیشە', icon: TAB_ICONS.professions, roles: 'ALL',
+        id: 'professions', label: 'پیشە', icon: ICONS.badge, roles: 'ALL',
         // لە دیسکتۆپ لە باڕی خوارەوەیە — لە مۆبایل لە پانێلی بەڕێوەبردنەوە دەکرێتەوە (تەنیشت زۆنەکان)
         desktopOnly: true,
         render: el => ProfessionsView.render(el),
@@ -112,7 +111,7 @@ const App = (() => {
     const nav = $('#bottom-nav');
     nav.innerHTML = orderedTabs().map(t => `
       <button class="nav-btn ${t.desktopOnly ? 'nav-desktop-only' : ''}" data-tab="${t.id}" role="tab">
-        <span class="nav-ico">${UI.icon(t.icon, 22)}</span>
+        <span class="nav-ico">${t.icon}</span>
         <span class="nav-label">${UI.esc(t.label)}</span>
       </button>`).join('');
     nav.querySelectorAll('.nav-btn').forEach(btn => {
@@ -483,14 +482,5 @@ const App = (() => {
   }
 
   document.addEventListener('DOMContentLoaded', boot);
-
-  /** باڕی خوارەوە نوێ بکەرەوە — بۆ گۆڕینی ئایکۆنەکان پاش گۆڕینی رووکاری ئەنیمە */
-  function refreshNav() {
-    if (!currentUser) return;
-    renderNav();
-    document.querySelectorAll('.bottom-nav .nav-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.tab === currentTab?.id);
-    });
-  }
-  return { switchTab, getUser: () => currentUser, renderHeader, refreshNav, logout };
+  return { switchTab, getUser: () => currentUser, renderHeader, logout };
 })();

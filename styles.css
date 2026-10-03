@@ -373,6 +373,13 @@ html.glow-on .login-card::before {
   margin-inline-end: 7px; color: var(--accent);
 }
 .sec-icon svg { display: block; }
+
+/* هەموو ئایکۆنەکانی سیستەم — ئۆپشنی «پشاندانی ئایکۆنەکان» بە تەواوی هەموویان دەگرێتەوە */
+.sys-ico {
+  display: inline-flex; vertical-align: -3px; flex-shrink: 0;
+}
+.sys-ico svg { display: block; }
+html.hide-icons .sys-ico,
 html.hide-icons .sec-icon { display: none !important; }
 
 .hint { color: var(--muted); font-size: 0.82rem; margin: 6px 0 12px; }
@@ -2170,8 +2177,8 @@ html.hide-icons .sec-icon { display: none !important; }
 .num-keypad .kp-number-layout { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
 .num-keypad .kp-text-layout { display: grid; gap: 5px; }
 .num-keypad .kp-row { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 5px; }
-.num-keypad .kp-controls { grid-template-columns: 2.5fr 1fr 1fr; }
-.num-keypad .kp-zero { grid-column: span 2; }
+.num-keypad .kp-controls { grid-template-columns: 1.1fr 2.4fr 1fr 1fr; }
+.num-keypad .kp-toggle { color: var(--accent); font-size: 1rem !important; }
 
 .num-keypad button {
   min-width: 0; height: 50px; border-radius: 12px;
@@ -2725,148 +2732,4 @@ body.keypad-open .modal-fullscreen {
 .avatar-lightbox-name {
   color: #fff; font-weight: 700; font-size: 1.05rem;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-}
-
-/* ---------------- رووکاری گشتی — ئەنیمە (وەن پیس / ئەتاک ئۆن تایتن / ناروتۆ) ----------------
- * هەر ئەنیمێک پاڵێتی تەواوی خۆی هەیە: ڕەنگی سەرەکی، پاشبنەما (بە چینی جێگیر --bg-tint)،
- * کارتەکان، باڕی خوارەوە، خانە نووسینەکان — لە لۆگینەوە تا کۆتایی. */
-
-.anime-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;
-}
-.anime-btn {
-  display: flex; flex-direction: column; gap: 6px; align-items: stretch;
-  padding: 10px; border-radius: 14px; cursor: pointer;
-  background: var(--surface-2); border: 1.5px solid var(--border);
-  color: var(--text); font-family: inherit; text-align: start;
-  transition: border-color .15s ease, box-shadow .15s ease, transform .12s ease;
-}
-.anime-btn:hover { border-color: var(--accent); transform: translateY(-2px); }
-.anime-btn.active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 32%, transparent);
-}
-.anime-btn b { font-size: .92rem; font-weight: 700; }
-.anime-btn small { color: var(--muted); font-size: .72rem; }
-.anime-preview { height: 46px; border-radius: 9px; display: block; }
-.ap-onepiece { background: linear-gradient(135deg, #04121e 0%, #0d4a6b 45%, #1d7fae 70%, #e8433f 100%); }
-.ap-aot      { background: linear-gradient(135deg, #0f100b 0%, #2b2d1c 45%, #5f7d3c 75%, #a3c26b 100%); }
-.ap-naruto   { background: linear-gradient(135deg, #090b16 0%, #1a2340 50%, #ff8a2a 85%, #ffc46b 100%); }
-.ap-default  { background: linear-gradient(135deg, #0b1220 0%, #17233a 55%, var(--accent) 100%); }
-
-/* — وەن پیس: زەریا، کڵاوی پوسکا و ئاڵای سوور — */
-html[data-anime='onepiece'] {
-  --accent: #e8433f;
-  --bg: #061a29;
-  --bg-tint:
-    radial-gradient(1100px 460px at 80% -10%, rgba(244, 193, 79, .16), transparent 60%),
-    radial-gradient(900px 420px at 10% 0%, rgba(29, 127, 174, .30), transparent 55%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='46' viewBox='0 0 140 46'%3E%3Cpath d='M0 23 Q 17.5 9 35 23 T 70 23 T 105 23 T 140 23' fill='none' stroke='%23ffffff' stroke-opacity='.05' stroke-width='2'/%3E%3Cpath d='M0 36 Q 17.5 24 35 36 T 70 36 T 105 36 T 140 36' fill='none' stroke='%23ffffff' stroke-opacity='.035' stroke-width='2'/%3E%3C/svg%3E");
-  --surface: #0a2839;
-  --surface-2: #0e3348;
-  --border: rgba(126, 178, 210, 0.18);
-  --text: #eaf4fa;
-  --muted: #86aec4;
-  --shadow: 0 10px 30px rgba(0, 10, 18, 0.45);
-  --nav-bg: rgba(6, 24, 37, 0.88);
-  --topbar-bg: rgba(6, 24, 37, 0.8);
-  --input-bg: #08202f;
-  --hover: rgba(255, 255, 255, 0.05);
-  color-scheme: dark;
-}
-
-/* — ئەتاک ئۆن تایتن: دیوارەکان، مامەڵەی سەربازی و کڵاوی سکاوت — */
-html[data-anime='aot'] {
-  --accent: #9dbb63;
-  --bg: #12130c;
-  --bg-tint:
-    radial-gradient(1000px 420px at 85% -10%, rgba(157, 187, 99, .13), transparent 60%),
-    radial-gradient(800px 400px at 8% 0%, rgba(140, 115, 65, .15), transparent 55%),
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, .022) 0 14px, transparent 14px 28px);
-  --surface: #1a1b11;
-  --surface-2: #212218;
-  --border: rgba(190, 200, 140, 0.16);
-  --text: #eef0e0;
-  --muted: #a6a98c;
-  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-  --nav-bg: rgba(15, 16, 9, 0.88);
-  --topbar-bg: rgba(15, 16, 9, 0.8);
-  --input-bg: #171810;
-  --hover: rgba(255, 255, 255, 0.045);
-  color-scheme: dark;
-}
-
-/* — ناروتۆ: شەوی کۆنۆها، پریشکی پرتەقاڵی و سپیراڵی چاکرا — */
-html[data-anime='naruto'] {
-  --accent: #ff8a2a;
-  --bg: #0d1020;
-  --bg-tint:
-    radial-gradient(1100px 460px at 82% -8%, rgba(255, 138, 42, .18), transparent 58%),
-    radial-gradient(900px 420px at 8% 2%, rgba(64, 86, 180, .24), transparent 55%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cpath d='M80 76 a4 4 0 1 1 -4 4 a8 8 0 1 1 8 -8 a16 16 0 1 1 -16 16 a28 28 0 1 1 28 -28 a44 44 0 1 1 -44 44 a62 62 0 1 1 62 -62' fill='none' stroke='%23ff8a2a' stroke-opacity='.06' stroke-width='2'/%3E%3C/svg%3E");
-  --surface: #12152a;
-  --surface-2: #181c34;
-  --border: rgba(140, 155, 210, 0.18);
-  --text: #edf0fa;
-  --muted: #939cba;
-  --shadow: 0 10px 30px rgba(0, 0, 10, 0.45);
-  --nav-bg: rgba(11, 13, 26, 0.88);
-  --topbar-bg: rgba(11, 13, 26, 0.8);
-  --input-bg: #0f1222;
-  --hover: rgba(255, 255, 255, 0.05);
-  color-scheme: dark;
-}
-
-/* لۆگین و سەرپەڕ — تینووتەی ئەنیمە لە یەکەم چرکەوە دیار بێت */
-html[data-anime] .login-card {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-  box-shadow: 0 14px 44px color-mix(in srgb, var(--accent) 16%, rgba(0, 0, 0, 0.4));
-}
-html[data-anime] .login-logo { color: var(--accent); }
-html[data-anime] .topbar { background: var(--topbar-bg); }
-
-/* — کارەکتەرە گەورەکان لە پاشبنەمای هەر ڕووکارێک — چینێکی جێگیر لە گۆشەکەدا — */
-html[data-anime='onepiece'] body::after,
-html[data-anime='aot'] body::after,
-html[data-anime='naruto'] body::after {
-  content: '';
-  position: fixed;
-  bottom: 0;
-  inset-inline-end: 0;
-  width: min(46vw, 500px);
-  height: min(72vh, 660px);
-  background: var(--anime-hero) no-repeat bottom right / contain;
-  pointer-events: none;
-  z-index: -1;
-  opacity: .95;
-}
-html[data-anime='onepiece'] body::after { --anime-hero: url('./art/onepiece-hero.svg'); }
-html[data-anime='aot'] body::after      { --anime-hero: url('./art/aot-hero.svg'); }
-html[data-anime='naruto'] body::after   { --anime-hero: url('./art/naruto-hero.svg'); }
-@media (max-width: 560px) {
-  html[data-anime] body::after {
-    width: 68vw;
-    height: 48vh;
-    opacity: .8;
-  }
-}
-
-/* — پێشبینینی دووگمەکانی رووکاری گشتی — بە کارەکتەرەوە — */
-.ap-onepiece {
-  background-image: url('./art/onepiece-hero.svg'), linear-gradient(135deg, #04121e 0%, #0d4a6b 45%, #1d7fae 70%, #e8433f 100%);
-  background-repeat: no-repeat, no-repeat;
-  background-position: right bottom, 0 0;
-  background-size: 52% 115%, 100% 100%;
-}
-.ap-aot {
-  background-image: url('./art/aot-hero.svg'), linear-gradient(135deg, #0f100b 0%, #2b2d1c 45%, #5f7d3c 75%, #a3c26b 100%);
-  background-repeat: no-repeat, no-repeat;
-  background-position: right bottom, 0 0;
-  background-size: 52% 115%, 100% 100%;
-}
-.ap-naruto {
-  background-image: url('./art/naruto-hero.svg'), linear-gradient(135deg, #090b16 0%, #1a2340 50%, #ff8a2a 85%, #ffc46b 100%);
-  background-repeat: no-repeat, no-repeat;
-  background-position: right bottom, 0 0;
-  background-size: 52% 115%, 100% 100%;
 }

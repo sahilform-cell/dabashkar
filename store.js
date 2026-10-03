@@ -71,7 +71,7 @@ const Store = (() => {
   };
 
   function getSettings() {
-    const defaults = { theme: 'dark', accent: CONFIG.DEFAULT_ACCENT, borderColor: null, animeTheme: 'default', rowClickFullscreen: true, reportCardLayout: true, cellTitles: false, showHints: true, showIcons: true, glow: false, glowColor: '#10b981', glowLen: 20, glowSpeed: 4, notifDays: 1, lockScreenActions: false, customKeypadText: false, customKeypadNum: false, hiddenCols: [], hiddenTotals: [], ...FONT_DEFAULTS, ...PRINT_DEFAULTS };
+    const defaults = { theme: 'dark', accent: CONFIG.DEFAULT_ACCENT, borderColor: null, rowClickFullscreen: true, reportCardLayout: true, cellTitles: false, showHints: true, showIcons: true, glow: false, glowColor: '#10b981', glowLen: 20, glowSpeed: 4, notifDays: 1, lockScreenActions: false, customKeypadText: false, customKeypadNum: false, hiddenCols: [], hiddenTotals: [], ...FONT_DEFAULTS, ...PRINT_DEFAULTS };
     try {
       const s = Object.assign(defaults, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'));
       /* کۆچکردن: ڕێکخستنی کۆنی customKeypad دابەش دەکرێت بۆ دوو ڕێکخستنی جیا */
@@ -97,31 +97,15 @@ const Store = (() => {
   function applySettings() {
     const s = getSettings();
     document.documentElement.dataset.theme = s.theme;
-
-    // رووکاری گشتی — ئەنیمە: کاتێک چالاک بێت پاڵێتی CSS ی ئەنیمەکە باڵادەستە
-    // (accent و border ی inline لادەبرێت تاکو پاش گەڕانەوە بۆ «ڕەسەن» هەمان نرخە پاشەکەوتکراوەکان بگەڕێنەوە)
-    const animeActive = ['onepiece', 'aot', 'naruto'].includes(s.animeTheme);
-    if (animeActive) document.documentElement.dataset.anime = s.animeTheme;
-    else document.documentElement.removeAttribute('data-anime');
-
-    // لۆگۆی لۆگین — بەپێی جیهانی ئەنیمە دەگۆڕدرێت (وەن پیس: کەشتی، ناروتۆ: شوریکێن...)
-    try {
-      const logoBox = document.getElementById('login-logo');
-      if (logoBox && window.UI) logoBox.innerHTML = UI.icon('truck', 40);
-    } catch (_) { /* UI هێشتا ئامادە نییە — لۆگۆی سەرەتایی دەمێنێتەوە */ }
-
-    if (!animeActive) document.documentElement.style.setProperty('--accent', s.accent);
-    else document.documentElement.style.removeProperty('--accent');
+    document.documentElement.style.setProperty('--accent', s.accent);
     // ڕەنگی سترۆکی تایبەت — ئەگەر بەکارهێنەر ڕەنگی دیاریکردبێت جێی بگرێت، ئەگینا null بکەیتەوە بۆ ئەوەی CSS-ی تیمەکە کار بکات
-    if (s.borderColor && !animeActive) {
+    if (s.borderColor) {
       document.documentElement.style.setProperty('--border', s.borderColor);
     } else {
       document.documentElement.style.removeProperty('--border');
     }
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = animeActive
-      ? { onepiece: '#061a29', aot: '#12130c', naruto: '#0d1020' }[s.animeTheme]
-      : (s.theme === 'dark' ? '#0b1220' : '#eef2f9');
+    if (meta) meta.content = s.theme === 'dark' ? '#0b1220' : '#eef2f9';
 
     // شێوازی پیشاندانی خشتەکان — ناونیشانی ستوونەکان لەناو خانەکانی خۆیان
     document.documentElement.classList.toggle('cell-titles', !!s.cellTitles);

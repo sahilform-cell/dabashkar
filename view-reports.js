@@ -336,13 +336,13 @@ const ReportsView = (() => {
     if (!rows.length) {
       tableEl.innerHTML = `
         <div class="empty-state">
-          <div class="empty-ico">📭</div>
+          <div class="empty-ico">${UI.icon('folder', 34)}</div>
           <p>هیچ تۆمارێک نەدۆزرایەوە بۆ ئەم مەودایە یان فلتەرەکانەوە.</p>
         </div>`;
     } else if (!visCols.length) {
       tableEl.innerHTML = `
         <div class="empty-state">
-          <div class="empty-ico">🙈</div>
+          <div class="empty-ico">${UI.icon('eye-off', 34)}</div>
           <p>هەموو ستوونەکان شاردراونەتەوە — لە ڕێکخستنەکان ستوونێک پیشان بدەرەوە.</p>
         </div>`;
     } else {

@@ -298,7 +298,7 @@ const DriverView = (() => {
     } catch (err) {
       container.innerHTML = `
         <div class="empty-state">
-          <div class="empty-ico">⚠️</div>
+          <div class="empty-ico">${UI.icon('alert', 34)}</div>
           <p>هەڵە لە هێنانی داتا: ${UI.esc(err.message)}</p>
           <button class="btn btn-primary" id="retry-btn">دووبارە هەوڵبدە</button>
         </div>`;
@@ -407,7 +407,7 @@ const DriverView = (() => {
         <button class="money-row" id="money-btn" type="button">
           <span class="money-lbl">${UI.icon('coins', 15)} پارەی هێنراوە</span>
           <b class="money-val">—</b>
-          <span class="money-edit">${UI.icon('plus', 13)} تۆمارکردن</span>
+          <span class="money-edit">➕ تۆمارکردن</span>
         </button>` : ''}
       </section>`;
     $('#money-btn', el)?.addEventListener('click', () => openMoneyModal(active));
@@ -457,7 +457,7 @@ const DriverView = (() => {
           <div class="hist-top">
             <b>${UI.esc(CONFIG.CARGO_LABELS[cargoIndex(r)] || 'بار')} — ${UI.esc(r.zone || '—')}</b>
             <div style="display:flex;align-items:center;gap:6px">
-              ${canEditData ? `<button type="button" class="btn-edit-times btn-edit-big btn-hist-edit" data-id="${r.id}" title="دەستکاریکردنی داتا و پارەی ئەم بارە">${UI.icon('edit', 14)} دەستکاری داتا</button>` : ''}
+              ${canEditData ? `<button type="button" class="btn-edit-times btn-edit-big btn-hist-edit" data-id="${r.id}" title="دەستکاریکردنی داتا و پارەی ئەم بارە">✏️ دەستکاری داتا</button>` : ''}
             </div>
           </div>
           <div class="hist-meta">
@@ -477,7 +477,7 @@ const DriverView = (() => {
               <span class="muted" style="font-size:0.82rem">${UI.icon('coins', 14)} پارەی هێنراوە:</span>
               <b class="money-val" style="font-size:1.02rem">${UI.fmtMoney(r.collected_money)}</b>
               ${!hasMoney
-                ? `<span class="badge-unrecorded">⚠️ تۆمار نەکراوە</span>`
+                ? `<span class="badge-unrecorded">${UI.icon('alert', 12)} تۆمار نەکراوە</span>`
                 : `<span class="badge-recorded">✓ تۆمارکراوە</span>`}
             </div>
             ${!hasMoney ? `<button type="button" class="btn-hist-money pulse-btn" data-id="${r.id}" title="تۆمارکردنی پارەی ئەم بارە">${UI.icon('plus', 13)} تۆمارکردنی پارە</button>` : ''}
@@ -754,7 +754,8 @@ const DriverView = (() => {
     ['#f-weight', '#f-pieces', '#f-receipt'].forEach(id => wireExprField($(id, body)));
 
     const { close } = UI.openModal({
-      title: `🚚 تۆمارکردنی دەرچوون — ${cargoLabel}`,
+      title: `تۆمارکردنی دەرچوون — ${cargoLabel}`,
+      titleIcon: 'truck',
       body,
       actions: [
         { label: 'پاشگەزبوونەوە', className: 'btn-ghost', onClick: () => close() },
@@ -880,7 +881,8 @@ const DriverView = (() => {
       </div>`;
 
     const { close } = UI.openModal({
-      title: '💰 پارەی هێنراوە',
+      title: 'پارەی هێنراوە',
+      titleIcon: 'coins',
       body,
       actions: [
         { label: 'پاشگەزبوونەوە', className: 'btn-ghost', onClick: () => close() },
@@ -993,7 +995,7 @@ const DriverView = (() => {
           <div class="field"><label>ژمارەی پارچەکان *</label><input id="f-pieces" type="text" inputmode="numeric" value="${UI.esc(rec.pieces_count ?? '')}"></div>
         </div>
         <div class="field"><label>ژمارەی وەسڵ *</label><input id="f-receipt" type="text" inputmode="numeric" value="${UI.esc(rec.receipt_number ?? '')}"></div>
-        <div class="field"><label>💰 پارەی هێنراوە (د.ع)</label><input id="f-money" type="number" min="0" step="1" inputmode="numeric" value="${Number(rec.collected_money || 0) > 0 ? UI.cleanInt(rec.collected_money) : ''}" placeholder="بەتاڵ = تۆمار نەکراوە"></div>
+        <div class="field"><label>${UI.icon('coins', 13)} پارەی هێنراوە (د.ع)</label><input id="f-money" type="number" min="0" step="1" inputmode="numeric" value="${Number(rec.collected_money || 0) > 0 ? UI.cleanInt(rec.collected_money) : ''}" placeholder="بەتاڵ = تۆمار نەکراوە"></div>
 
         <div class="date-range-compact" style="margin-top:10px">
           <div class="field compact-field"><label>📍 کاتی ناو زۆن</label><input type="time" id="f-in-zone" value="${rec.in_zone_time || ''}"></div>
