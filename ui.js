@@ -1440,11 +1440,45 @@ const UI = (() => {
       return;
     }
 
-    bodyEl.innerHTML = notifs.map(n => `
+    // لیستی یوسەرەکان — بۆ دۆزینەوەی وێنەی پڕۆفایلی ئەنجامدەر
+    let users = [];
+    try { users = (await Store.loadLists()).users || []; } catch (_) {}
+
+    const notifMeta = n => {
+      const text = String(n.action || '');
+      // ئیمۆجی پێشەوەی دەقە کۆنەکان لاببە — ئایکۆنی SVG جێگەری دەگرێتەوە
+      const clean = text.replace(/^[^\p{L}\p{N}]+/u, '').trim();
+      let icoName = 'bell';
+      if (clean.includes('گەیشتن بە ناو زۆن')) icoName = 'enter';
+      else if (clean.includes('دەرچوون لە زۆن') || clean.includes('دەرێی زۆن')) icoName = 'exit';
+      else if (clean.includes('گەشتنەوە')) icoName = 'flag';
+      else if (clean.includes('دەرچوون')) icoName = 'truck';
+      else if (clean.includes('دەستکاری')) icoName = 'edit';
+      else if (clean.includes('زیادکرا') || clean.includes('زیادکردن')) icoName = 'plus';
+      else if (clean.includes('سڕدرایەوە')) icoName = 'trash';
+      // ئەنجامدەر — لە کۆتایی دەقەکەوە: «— لەلایەن ناو» یان فۆرماتی کۆن «(لەلایەن ناو)»
+      let m = clean.match(/—\s*لەلایەن\s+(.+?)\s*$/u);
+      if (!m) m = clean.match(/\(لەلایەن\s+(.+?)\)\s*$/u);
+      const actorName = m ? m[1].trim() : '';
+      const actor = actorName ? users.find(u => norm(u.username) === norm(actorName)) : null;
+      return { clean, icoName, actor, actorName };
+    };
+
+    bodyEl.innerHTML = notifs.map(n => {
+      const { clean, icoName, actor, actorName } = notifMeta(n);
+      const who = actor || { username: actorName || '؟' };
+      return `
       <div class="notif-item read">
-        <div class="notif-item-meta"><span>${esc(fmtNotifTs(n.created_at))}</span></div>
-        <div class="notif-item-msg">${esc(n.action || '')}</div>
-      </div>`).join('');
+        <div class="notif-item-row">
+          <span class="notif-item-ico">${icon(icoName, 16)}</span>
+          ${avatarHtml(who, 34)}
+          <div class="notif-item-main">
+            <div class="notif-item-msg">${esc(clean)}</div>
+            <div class="notif-item-meta"><span>${esc(fmtNotifTs(n.created_at))}</span></div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
   }
 
   return {

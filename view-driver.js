@@ -519,10 +519,10 @@ const DriverView = (() => {
 
   /* ناردنی نۆتیفیکەیشن بۆ هەموو یوسەرە ناوبراوەکانی تۆمار (شۆفێر/دابەشکار/مەندوب) و بەڕێوەبەر —
      هەر یوسەرێک تەنها ئەو نۆتیفیکەیشانە دەبینێت کە ناوی خۆی تێدایە (فلتەر لە کاتی پیشاندان) */
-  function notifyTripAction(rec, actionLabel) {
+  function notifyTripAction(actionLabel) {
     const actor = App.getUser()?.username || '';
-    const msg = `${actionLabel} — شۆفێر: ${rec.driver || '—'}، دابەشکار: ${rec.distributor || '—'}، مەندوب: ${rec.delegate || '—'}، زۆن: ${rec.zone || '—'}` +
-      (actor ? ` (لەلایەن ${actor})` : '');
+    // کورتی — تەنها ناوی کردار + ناوی ئەنجامدەر؛ وردەکاری بارەکە نانووسرێت
+    const msg = `${actionLabel}${actor ? ` — لەلایەن ${actor}` : ''}`;
     API.Notifications.send(msg)
       .catch(e => console.warn('هەڵە لە ناردنی نۆتیفیکەیشن:', e));
   }
@@ -544,7 +544,6 @@ const DriverView = (() => {
 
     const field = { in_zone: 'in_zone_time', out_zone: 'out_zone_time', arrival: 'arrival_time' }[type];
     const label = { in_zone: 'گەیشتن بە ناو زۆن', out_zone: 'دەرچوون لە زۆن', arrival: 'گەشتنەوە' }[type];
-    const icon = { in_zone: '📍', out_zone: '🚏', arrival: '🏁' }[type];
 
     const actBtn = container ? $('#act-btn', container) : null;
     if (actBtn) UI.btnLoading(actBtn, true, 'تۆمار دەکرێت...');
@@ -558,7 +557,7 @@ const DriverView = (() => {
       }
       await API.Records.update(active.id, patch);
       UI.toast(`${label} بە سەرکەوتوویی تۆمار کرا ✓`, 'success');
-      notifyTripAction(active, `${icon} ${label} تۆمارکرا`);
+      notifyTripAction(`${label} تۆمارکرا`);
       await load({ silent: true });
     } catch (err) {
       UI.toast('هەڵە لە تۆمارکردن: ' + err.message, 'error', 4200);
@@ -851,11 +850,8 @@ const DriverView = (() => {
                 receipt_number: sendNumeric(receiptRaw),
                 in_zone_time: null, out_zone_time: null, arrival_time: null, collected_money: 0,
               });
-              UI.toast('دەرچوون بە سەرکەوتوویی تۆمار کرا 🚚', 'success');
-              notifyTripAction(
-                { driver: finalDriver + suffix, distributor: finalDistrib + suffix, delegate: finalDelegate, zone: finalZone },
-                '🚚 دەرچوون تۆمارکرا'
-              );
+              UI.toast('دەرچوون بە سەرکەوتوویی تۆمار کرا ✓', 'success');
+              notifyTripAction('دەرچوون تۆمارکرا');
               close();
               await load({ silent: true });
             } catch (err) {
@@ -1159,7 +1155,7 @@ const DriverView = (() => {
                 const newV = typeof patch[k] === 'number' ? UI.fmtNum(patch[k]) : (patch[k] ?? '(بەتاڵ)');
                 const label = FIELD_LABELS[k] || k;
                 API.Notifications.send(
-                  `خانەی «${label}» لە «${oldV}» گۆڕا بۆ «${newV}» (لەلایەن ${editorName}) — شۆفێر: ${rec.driver || '—'}، دابەشکار: ${rec.distributor || '—'}، مەندوب: ${rec.delegate || '—'}، زۆن: ${rec.zone || '—'}، بەروار: ${rec.record_date || '—'}`
+                  `خانەی «${label}» گۆڕدرا بۆ «${newV}» (لەلایەن ${editorName})`
                 ).catch(e => console.warn('هەڵە لە ناردنی نۆتیفیکەیشن:', e));
               });
 

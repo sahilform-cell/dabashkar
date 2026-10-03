@@ -1680,6 +1680,27 @@ html.hide-icons .sec-icon { display: none !important; }
   transition: opacity .2s;
 }
 
+/* — ڕیزی نۆتیفیکەیشن: ئایکۆنی کردار + وێنەی پڕۆفایلی ئەنجامدەر + دەق — */
+.notif-item-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.notif-item-ico {
+  width: 34px; height: 34px; border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.notif-item-row .avatar {
+  width: 34px; height: 34px;
+  flex-shrink: 0;
+}
+.notif-item-main {
+  flex: 1; min-width: 0;
+}
+
 .notif-item.read {
   opacity: .6;
   border-inline-end-color: var(--border);
@@ -1692,6 +1713,7 @@ html.hide-icons .sec-icon { display: none !important; }
   color: var(--muted);
   margin-bottom: 5px;
 }
+.notif-item-main .notif-item-meta { margin-bottom: 0; margin-top: 2px; }
 
 .notif-item-who {
   font-weight: 700;
