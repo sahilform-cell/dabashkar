@@ -12,51 +12,51 @@ const Perms = (() => {
    * group: بۆ ڕێکخستنی لە فۆڕمی پیشەکاندا
    * -------------------------------------------------------- */
   const FEATURES = [
-    // بینینی فۆڕمەکان (تابەکان) — icon: ناوی ئایکۆنی SVG (UI.icon)
-    { group: 'tabs', key: 'tab_driver',    icon: 'truck',  label: 'فۆڕمی کارەکان',          type: 'view' },
-    { group: 'tabs', key: 'tab_reports',   icon: 'chart',  label: 'فۆڕمی ڕاپۆرت',           type: 'view' },
-    { group: 'tabs', key: 'tab_contacts',  icon: 'phone',  label: 'فۆڕمی پەیوەندی',         type: 'view' },
-    { group: 'tabs', key: 'tab_admin',     icon: 'shield', label: 'پانێلی بەڕێوەبردن',      type: 'view' },
-    { group: 'tabs', key: 'tab_settings',  icon: 'gear',   label: 'فۆڕمی ڕێکخستن',          type: 'view' },
+    // بینینی فۆڕمەکان (تابەکان)
+    { group: 'tabs', key: 'tab_driver',    icon: '🚚', label: 'فۆڕمی کارەکان',          type: 'view' },
+    { group: 'tabs', key: 'tab_reports',   icon: '📊', label: 'فۆڕمی ڕاپۆرت',           type: 'view' },
+    { group: 'tabs', key: 'tab_contacts',  icon: '📞', label: 'فۆڕمی پەیوەندی',         type: 'view' },
+    { group: 'tabs', key: 'tab_admin',     icon: '🛡️', label: 'پانێلی بەڕێوەبردن',      type: 'view' },
+    { group: 'tabs', key: 'tab_settings',  icon: '⚙️', label: 'فۆڕمی ڕێکخستن',          type: 'view' },
 
     // کردارەکانی گەشت
-    { group: 'trip', key: 'act_exit',      icon: 'truck',  label: 'تۆمارکردنی دەرچوون (فۆڕمی دەرچوون)', type: 'act' },
-    { group: 'trip', key: 'act_in_zone',   icon: 'enter',  label: 'کرداری گەیشتن بە ناو زۆن', type: 'act' },
-    { group: 'trip', key: 'act_out_zone',  icon: 'exit',   label: 'کرداری دەرچوون لە زۆن',   type: 'act' },
-    { group: 'trip', key: 'act_arrival',   icon: 'flag',   label: 'کرداری گەشتنەوە',        type: 'act' },
-    { group: 'trip', key: 'act_money',     icon: 'coins',  label: 'تۆمارکردنی پارەی هێنراوە', type: 'act' },
-    { group: 'trip', key: 'act_edit_data', icon: 'edit',   label: 'دەستکاریکردنی داتاکان',   type: 'act' },
+    { group: 'trip', key: 'act_exit',      icon: '🚚', label: 'تۆمارکردنی دەرچوون (فۆڕمی دەرچوون)', type: 'act' },
+    { group: 'trip', key: 'act_in_zone',   icon: '📍', label: 'کرداری گەیشتن بە ناو زۆن', type: 'act' },
+    { group: 'trip', key: 'act_out_zone',  icon: '🚏', label: 'کرداری دەرچوون لە زۆن',   type: 'act' },
+    { group: 'trip', key: 'act_arrival',   icon: '🏁', label: 'کرداری گەشتنەوە',        type: 'act' },
+    { group: 'trip', key: 'act_money',     icon: '💰', label: 'تۆمارکردنی پارەی هێنراوە', type: 'act' },
+    { group: 'trip', key: 'act_edit_data', icon: '✏️', label: 'دەستکاریکردنی داتاکان',   type: 'act' },
 
     // ڕاپۆرت
-    { group: 'reports', key: 'rep_view_all',       icon: 'folder', label: 'بینینی هەموو تۆمارەکان (نەک تەنها تۆمارەکانی خۆی)', type: 'view' },
-    { group: 'reports', key: 'rep_filter_driver',  icon: 'user',   label: 'فلتەری شۆفێر',           type: 'view' },
-    { group: 'reports', key: 'rep_filter_out_zone', icon: 'exit',  label: 'فلتەری دەرێی زۆن',       type: 'view' },
-    { group: 'reports', key: 'rep_filter_arrival', icon: 'flag',   label: 'فلتەری گەشتنەوە',        type: 'view' },
-    { group: 'reports', key: 'rep_filter_second',  icon: 'package', label: 'فلتەری تەنها باری دووەم', type: 'view' },
-    { group: 'reports', key: 'rep_edit',           icon: 'edit',   label: 'دەستکاریکردنی تۆمار',    type: 'act' },
-    { group: 'reports', key: 'rep_delete',         icon: 'trash',  label: 'سڕینەوەی تۆمار',         type: 'act' },
+    { group: 'reports', key: 'rep_view_all',       icon: '🗂', label: 'بینینی هەموو تۆمارەکان (نەک تەنها تۆمارەکانی خۆی)', type: 'view' },
+    { group: 'reports', key: 'rep_filter_driver',  icon: '🧑‍✈️', label: 'فلتەری شۆفێر',           type: 'view' },
+    { group: 'reports', key: 'rep_filter_out_zone', icon: '🚏', label: 'فلتەری دەرێی زۆن',       type: 'view' },
+    { group: 'reports', key: 'rep_filter_arrival', icon: '🏁', label: 'فلتەری گەشتنەوە',        type: 'view' },
+    { group: 'reports', key: 'rep_filter_second',  icon: '📦', label: 'فلتەری تەنها باری دووەم', type: 'view' },
+    { group: 'reports', key: 'rep_edit',           icon: '✏️', label: 'دەستکاریکردنی تۆمار',    type: 'act' },
+    { group: 'reports', key: 'rep_delete',         icon: '🗑', label: 'سڕینەوەی تۆمار',         type: 'act' },
 
     // پانێلی بەڕێوەبردن — بەشەکان
-    { group: 'admin', key: 'admin_records', icon: 'truck', label: 'بەشی تۆمارەکان',   type: 'view' },
-    { group: 'admin', key: 'admin_users',   icon: 'users', label: 'بەشی بەکارهێنەران', type: 'view' },
-    { group: 'admin', key: 'admin_zones',   icon: 'map',   label: 'بەشی زۆنەکان',     type: 'view' },
+    { group: 'admin', key: 'admin_records', icon: '🚚', label: 'بەشی تۆمارەکان',   type: 'view' },
+    { group: 'admin', key: 'admin_users',   icon: '👥', label: 'بەشی بەکارهێنەران', type: 'view' },
+    { group: 'admin', key: 'admin_zones',   icon: '🗺️', label: 'بەشی زۆنەکان',     type: 'view' },
 
     // ڕێکخستن و ئەوانیتر
-    { group: 'settings', key: 'set_font',      icon: 'type',       label: 'ڕێکخستنی فۆنت و قەبارەی نووسین', type: 'view' },
-    { group: 'settings', key: 'set_keypad',    icon: 'keyboard',   label: 'ڕێکخستنی کیبۆردی تایبەتی',  type: 'view' },
-    { group: 'settings', key: 'set_lockscreen', icon: 'smartphone', label: 'ڕێکخستنی شاشەی قفڵ',       type: 'view' },
-    { group: 'settings', key: 'set_notif',     icon: 'bell',       label: 'ڕێکخستنی نۆتیفیکەیشنەکان', type: 'view' },
-    { group: 'settings', key: 'set_print',     icon: 'printer',    label: 'ناوەڕۆکی پرێنتکردن',       type: 'view' },
-    { group: 'settings', key: 'set_backup',    icon: 'database',   label: 'باکئەپی خۆکار',            type: 'view' },
-    { group: 'settings', key: 'notif_bell',    icon: 'bell',       label: 'زەنگی نۆتیفیکەیشن لە سەرپەڕ', type: 'view' },
+    { group: 'settings', key: 'set_font',      icon: '🔠', label: 'ڕێکخستنی فۆنت و قەبارەی نووسین', type: 'view' },
+    { group: 'settings', key: 'set_keypad',    icon: '⌨️', label: 'ڕێکخستنی کیبۆردی تایبەتی',  type: 'view' },
+    { group: 'settings', key: 'set_lockscreen', icon: '📱', label: 'ڕێکخستنی شاشەی قفڵ',       type: 'view' },
+    { group: 'settings', key: 'set_notif',     icon: '🔔', label: 'ڕێکخستنی نۆتیفیکەیشنەکان', type: 'view' },
+    { group: 'settings', key: 'set_print',     icon: '🖨️', label: 'ناوەڕۆکی پرێنتکردن',       type: 'view' },
+    { group: 'settings', key: 'set_backup',    icon: '💾', label: 'باکئەپی خۆکار',            type: 'view' },
+    { group: 'settings', key: 'notif_bell',    icon: '🔔', label: 'زەنگی نۆتیفیکەیشن لە سەرپەڕ', type: 'view' },
   ];
 
   const GROUPS = [
-    { key: 'tabs',     icon: 'globe',  label: 'بینینی فۆڕمەکان' },
-    { key: 'trip',     icon: 'truck',  label: 'کردارەکانی گەشت' },
-    { key: 'reports',  icon: 'chart',  label: 'ڕاپۆرت' },
-    { key: 'admin',    icon: 'shield', label: 'پانێلی بەڕێوەبردن' },
-    { key: 'settings', icon: 'gear',   label: 'ڕێکخستن و ئەوانیتر' },
+    { key: 'tabs',     label: '🧭 بینینی فۆڕمەکان' },
+    { key: 'trip',     label: '🚚 کردارەکانی گەشت' },
+    { key: 'reports',  label: '📊 ڕاپۆرت' },
+    { key: 'admin',    label: '🛡️ پانێلی بەڕێوەبردن' },
+    { key: 'settings', label: '⚙️ ڕێکخستن و ئەوانیتر' },
   ];
 
   /* ---------------- بنەڕەتەکان — هەمان ڕەفتاری ئێستای سیستەم ---------------- */

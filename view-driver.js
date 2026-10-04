@@ -298,7 +298,7 @@ const DriverView = (() => {
     } catch (err) {
       container.innerHTML = `
         <div class="empty-state">
-          <div class="empty-ico">${UI.icon('alert', 34)}</div>
+          <div class="empty-ico">⚠️</div>
           <p>هەڵە لە هێنانی داتا: ${UI.esc(err.message)}</p>
           <button class="btn btn-primary" id="retry-btn">دووبارە هەوڵبدە</button>
         </div>`;
@@ -311,12 +311,12 @@ const DriverView = (() => {
   function nextAction() {
     const active = activeRecord();
     if (active) {
-      if (!active.in_zone_time) return { type: 'in_zone', label: 'گەیشتمە ناو زۆن', icon: 'enter' };
-      if (!active.out_zone_time) return { type: 'out_zone', label: 'دەرچوون لە زۆن', icon: 'exit' };
-      return { type: 'arrival', label: 'گەیشتمەوە بۆ خاڵی دەستپێک', icon: 'flag' };
+      if (!active.in_zone_time) return { type: 'in_zone', label: 'گەیشتمە ناو زۆن', icon: '📍' };
+      if (!active.out_zone_time) return { type: 'out_zone', label: 'دەرچوون لە زۆن', icon: '🚏' };
+      return { type: 'arrival', label: 'گەیشتمەوە بۆ خاڵی دەستپێک', icon: '🏁' };
     }
     const count = records.length;
-    if (count >= CONFIG.MAX_CARGOS_PER_DAY) return { type: 'done', label: 'ئەمڕۆ هەر سێ بار تەواو بوون ✅', icon: 'trophy' };
+    if (count >= CONFIG.MAX_CARGOS_PER_DAY) return { type: 'done', label: 'ئەمڕۆ هەر سێ بار تەواو بوون ✅', icon: '🎉' };
 
     // پشکنینی ماوەی پێویست پاش گەشتنەوەی پێشوو
     if (count > 0) {
@@ -328,11 +328,11 @@ const DriverView = (() => {
         const elapsed = nowMin - arrived;
         const need = CONFIG.CARGO_GAP_MINUTES;
         if (elapsed < need) {
-          return { type: 'wait', remainMin: need - elapsed, label: `${CONFIG.CARGO_LABELS[count]} — بارێکی نوێ`, icon: 'plus' };
+          return { type: 'wait', remainMin: need - elapsed, label: `${CONFIG.CARGO_LABELS[count]} — بارێکی نوێ`, icon: '➕' };
         }
       }
     }
-    return { type: 'exit', label: `تۆمارکردنی دەرچوون — ${CONFIG.CARGO_LABELS[count] || 'باری نوێ'}`, icon: 'truck' };
+    return { type: 'exit', label: `تۆمارکردنی دەرچوون — ${CONFIG.CARGO_LABELS[count] || 'باری نوێ'}`, icon: '🚚' };
   }
 
   /* ---------------- ڕێندەری سەرەکی ---------------- */
@@ -364,10 +364,10 @@ const DriverView = (() => {
     const canMoney = Perms.canAct(App.getUser(), 'act_money');
 
     const stages = [
-      { key: 'record_time', label: 'دەرچوون', icon: 'truck' },
-      { key: 'in_zone_time', label: 'ناو زۆن', icon: 'enter' },
-      { key: 'out_zone_time', label: 'دەرێی زۆن', icon: 'exit' },
-      { key: 'arrival_time', label: 'گەشتنەوە', icon: 'flag' },
+      { key: 'record_time', label: 'دەرچوون', icon: '🚚' },
+      { key: 'in_zone_time', label: 'ناو زۆن', icon: '📍' },
+      { key: 'out_zone_time', label: 'دەرێی زۆن', icon: '🚏' },
+      { key: 'arrival_time', label: 'گەشتنەوە', icon: '🏁' },
     ];
     const firstUndone = stages.findIndex(s => !active[s.key]);
 
@@ -376,7 +376,7 @@ const DriverView = (() => {
       const isNow = i === firstUndone;
       return `
         <div class="step ${done ? 'done' : ''} ${isNow ? 'now' : ''}">
-          <div class="step-dot">${done ? '✓' : UI.icon(s.icon, 15)}</div>
+          <div class="step-dot">${done ? '✓' : s.icon}</div>
           <div class="step-time">${done ? UI.esc(active[s.key]) : '—'}</div>
           <div class="step-label">${s.label}</div>
         </div>`;
@@ -386,11 +386,11 @@ const DriverView = (() => {
       <section class="card active-card">
         <div class="active-head">
           <span class="cargo-badge">${UI.esc(CONFIG.CARGO_LABELS[cargoIndex(active)] || 'بار')}</span>
-          <span class="zone-chip">${UI.icon('map', 14)} ${UI.esc(active.zone || '—')}${markHtml(active, 'zone')}</span>
+          <span class="zone-chip">🗺 ${UI.esc(active.zone || '—')}${markHtml(active, 'zone')}</span>
         </div>
         ${canEditData ? `
         <div class="active-time-edit-bar">
-          <button type="button" class="btn-edit-times btn-edit-big" id="active-edit-times-btn">${UI.icon('edit', 14)} دەستکاری داتا</button>
+          <button type="button" class="btn-edit-times btn-edit-big" id="active-edit-times-btn">✏️ دەستکاری داتا</button>
         </div>` : ''}
         <div class="stepper">${stepsHtml}</div>
         <div class="detail-grid">
@@ -405,7 +405,7 @@ const DriverView = (() => {
         </div>
         ${active.arrival_time && !(Number(active.collected_money || 0) > 0) && canMoney ? `
         <button class="money-row" id="money-btn" type="button">
-          <span class="money-lbl">${UI.icon('coins', 15)} پارەی هێنراوە</span>
+          <span class="money-lbl">💰 پارەی هێنراوە</span>
           <b class="money-val">—</b>
           <span class="money-edit">➕ تۆمارکردن</span>
         </button>` : ''}
@@ -422,23 +422,23 @@ const DriverView = (() => {
     // دەسەڵات — ئەگەر کردارەکە بۆ ئەم یوسەرە چالاک نەکرابێت، ئاگاداری پیشان دەدرێت
     const actPermKey = act.type === 'exit' ? 'act_exit' : (['in_zone', 'out_zone', 'arrival'].includes(act.type) ? `act_${act.type}` : null);
     if (actPermKey && !Perms.canAct(u, actPermKey)) {
-      el.innerHTML = `<div class="card done-card">${UI.icon('lock', 16)} ئەم کردارە بۆ پیشەکەت چالاک نەکراوە — تکایە پەیوەندی بە بەڕێوەبەرەوە بکە.</div>`;
+      el.innerHTML = `<div class="card done-card">🔒 ئەم کردارە بۆ پیشەکەت چالاک نەکراوە — تکایە پەیوەندی بە بەڕێوەبەرەوە بکە.</div>`;
       return;
     }
 
     if (act.type === 'wait') {
       el.innerHTML = `
         <button class="btn btn-primary btn-block btn-big" disabled>
-          ${UI.icon(act.icon, 18)} ${UI.esc(act.label)} — دوای ${act.remainMin} خولەکی تر
+          ${act.icon} ${UI.esc(act.label)} — دوای ${act.remainMin} خولەکی تر
         </button>
         <p class="hint">ماوەی پێویست نێوان هەر دوو بار: ${CONFIG.CARGO_GAP_MINUTES} خولەک پاش گەشتنەوە</p>`;
     } else if (act.type === 'done') {
-      el.innerHTML = `<div class="card done-card">${UI.icon('trophy', 18)} ${UI.esc(act.label)}</div>`;
+      el.innerHTML = `<div class="card done-card">🎉 ${UI.esc(act.label)}</div>`;
     } else if (act.type === 'exit') {
-      el.innerHTML = `<button class="btn btn-primary btn-block btn-big" id="act-btn">${UI.icon(act.icon, 18)} ${UI.esc(act.label)}</button>`;
+      el.innerHTML = `<button class="btn btn-primary btn-block btn-big" id="act-btn">${act.icon} ${UI.esc(act.label)}</button>`;
       $('#act-btn', el).addEventListener('click', openExitModal);
     } else {
-      el.innerHTML = `<button class="btn btn-primary btn-block btn-big" id="act-btn">${UI.icon(act.icon, 18)} ${UI.esc(act.label)}</button>`;
+      el.innerHTML = `<button class="btn btn-primary btn-block btn-big" id="act-btn">${act.icon} ${UI.esc(act.label)}</button>`;
       $('#act-btn', el).addEventListener('click', () => doStage(act.type));
     }
   }
@@ -461,10 +461,10 @@ const DriverView = (() => {
             </div>
           </div>
           <div class="hist-meta">
-            <span>${UI.icon('truck', 14)} ${UI.esc(r.record_time || '—')}${markHtml(r, 'record_time')}</span>
-            <span>${UI.icon('enter', 14)} ${UI.esc(r.in_zone_time || '—')}${markHtml(r, 'in_zone_time')}</span>
-            <span>${UI.icon('exit', 14)} ${UI.esc(r.out_zone_time || '—')}${markHtml(r, 'out_zone_time')}</span>
-            <span>${UI.icon('flag', 14)} ${UI.esc(r.arrival_time || '—')}${markHtml(r, 'arrival_time')}</span>
+            <span>🚚 ${UI.esc(r.record_time || '—')}${markHtml(r, 'record_time')}</span>
+            <span>📍 ${UI.esc(r.in_zone_time || '—')}${markHtml(r, 'in_zone_time')}</span>
+            <span>🚏 ${UI.esc(r.out_zone_time || '—')}${markHtml(r, 'out_zone_time')}</span>
+            <span>🏁 ${UI.esc(r.arrival_time || '—')}${markHtml(r, 'arrival_time')}</span>
           </div>
           <div class="hist-foot">
             <span>${UI.fmtNum(r.cargo_weight)} کگم${markHtml(r, 'cargo_weight')} • ${UI.fmtNum(r.pieces_count)} پارچە${markHtml(r, 'pieces_count')} • ${UI.fmtNum(r.receipt_number)} وەسڵ${markHtml(r, 'receipt_number')}</span>
@@ -474,13 +474,13 @@ const DriverView = (() => {
           <!-- بەشی پارەی هێنراوە — دوگمەکە تەنها کاتێک دەردەکەوێت کە پارە تۆمار نەکرابێت -->
           <div class="hist-money-row ${!hasMoney ? 'pending' : ''}">
             <div class="hist-money-info">
-              <span class="muted" style="font-size:0.82rem">${UI.icon('coins', 14)} پارەی هێنراوە:</span>
+              <span class="muted" style="font-size:0.82rem">💰 پارەی هێنراوە:</span>
               <b class="money-val" style="font-size:1.02rem">${UI.fmtMoney(r.collected_money)}</b>
               ${!hasMoney
-                ? `<span class="badge-unrecorded">${UI.icon('alert', 12)} تۆمار نەکراوە</span>`
+                ? `<span class="badge-unrecorded">⚠️ تۆمار نەکراوە</span>`
                 : `<span class="badge-recorded">✓ تۆمارکراوە</span>`}
             </div>
-            ${!hasMoney ? `<button type="button" class="btn-hist-money pulse-btn" data-id="${r.id}" title="تۆمارکردنی پارەی ئەم بارە">${UI.icon('plus', 13)} تۆمارکردنی پارە</button>` : ''}
+            ${!hasMoney ? `<button type="button" class="btn-hist-money pulse-btn" data-id="${r.id}" title="تۆمارکردنی پارەی ئەم بارە">➕ تۆمارکردنی پارە</button>` : ''}
           </div>
         </div>`;
       }).join('')}`;
@@ -519,10 +519,10 @@ const DriverView = (() => {
 
   /* ناردنی نۆتیفیکەیشن بۆ هەموو یوسەرە ناوبراوەکانی تۆمار (شۆفێر/دابەشکار/مەندوب) و بەڕێوەبەر —
      هەر یوسەرێک تەنها ئەو نۆتیفیکەیشانە دەبینێت کە ناوی خۆی تێدایە (فلتەر لە کاتی پیشاندان) */
-  function notifyTripAction(actionLabel) {
+  function notifyTripAction(rec, actionLabel) {
     const actor = App.getUser()?.username || '';
-    // کورتی — تەنها ناوی کردار + ناوی ئەنجامدەر؛ وردەکاری بارەکە نانووسرێت
-    const msg = `${actionLabel}${actor ? ` — لەلایەن ${actor}` : ''}`;
+    const msg = `${actionLabel} — شۆفێر: ${rec.driver || '—'}، دابەشکار: ${rec.distributor || '—'}، مەندوب: ${rec.delegate || '—'}، زۆن: ${rec.zone || '—'}` +
+      (actor ? ` (لەلایەن ${actor})` : '');
     API.Notifications.send(msg)
       .catch(e => console.warn('هەڵە لە ناردنی نۆتیفیکەیشن:', e));
   }
@@ -544,6 +544,7 @@ const DriverView = (() => {
 
     const field = { in_zone: 'in_zone_time', out_zone: 'out_zone_time', arrival: 'arrival_time' }[type];
     const label = { in_zone: 'گەیشتن بە ناو زۆن', out_zone: 'دەرچوون لە زۆن', arrival: 'گەشتنەوە' }[type];
+    const icon = { in_zone: '📍', out_zone: '🚏', arrival: '🏁' }[type];
 
     const actBtn = container ? $('#act-btn', container) : null;
     if (actBtn) UI.btnLoading(actBtn, true, 'تۆمار دەکرێت...');
@@ -557,7 +558,7 @@ const DriverView = (() => {
       }
       await API.Records.update(active.id, patch);
       UI.toast(`${label} بە سەرکەوتوویی تۆمار کرا ✓`, 'success');
-      notifyTripAction(`${label} تۆمارکرا`);
+      notifyTripAction(active, `${icon} ${label} تۆمارکرا`);
       await load({ silent: true });
     } catch (err) {
       UI.toast('هەڵە لە تۆمارکردن: ' + err.message, 'error', 4200);
@@ -753,8 +754,7 @@ const DriverView = (() => {
     ['#f-weight', '#f-pieces', '#f-receipt'].forEach(id => wireExprField($(id, body)));
 
     const { close } = UI.openModal({
-      title: `تۆمارکردنی دەرچوون — ${cargoLabel}`,
-      titleIcon: 'truck',
+      title: `🚚 تۆمارکردنی دەرچوون — ${cargoLabel}`,
       body,
       actions: [
         { label: 'پاشگەزبوونەوە', className: 'btn-ghost', onClick: () => close() },
@@ -850,8 +850,11 @@ const DriverView = (() => {
                 receipt_number: sendNumeric(receiptRaw),
                 in_zone_time: null, out_zone_time: null, arrival_time: null, collected_money: 0,
               });
-              UI.toast('دەرچوون بە سەرکەوتوویی تۆمار کرا ✓', 'success');
-              notifyTripAction('دەرچوون تۆمارکرا');
+              UI.toast('دەرچوون بە سەرکەوتوویی تۆمار کرا 🚚', 'success');
+              notifyTripAction(
+                { driver: finalDriver + suffix, distributor: finalDistrib + suffix, delegate: finalDelegate, zone: finalZone },
+                '🚚 دەرچوون تۆمارکرا'
+              );
               close();
               await load({ silent: true });
             } catch (err) {
@@ -877,8 +880,7 @@ const DriverView = (() => {
       </div>`;
 
     const { close } = UI.openModal({
-      title: 'پارەی هێنراوە',
-      titleIcon: 'coins',
+      title: '💰 پارەی هێنراوە',
       body,
       actions: [
         { label: 'پاشگەزبوونەوە', className: 'btn-ghost', onClick: () => close() },
@@ -991,7 +993,7 @@ const DriverView = (() => {
           <div class="field"><label>ژمارەی پارچەکان *</label><input id="f-pieces" type="text" inputmode="numeric" value="${UI.esc(rec.pieces_count ?? '')}"></div>
         </div>
         <div class="field"><label>ژمارەی وەسڵ *</label><input id="f-receipt" type="text" inputmode="numeric" value="${UI.esc(rec.receipt_number ?? '')}"></div>
-        <div class="field"><label>${UI.icon('coins', 13)} پارەی هێنراوە (د.ع)</label><input id="f-money" type="number" min="0" step="1" inputmode="numeric" value="${Number(rec.collected_money || 0) > 0 ? UI.cleanInt(rec.collected_money) : ''}" placeholder="بەتاڵ = تۆمار نەکراوە"></div>
+        <div class="field"><label>💰 پارەی هێنراوە (د.ع)</label><input id="f-money" type="number" min="0" step="1" inputmode="numeric" value="${Number(rec.collected_money || 0) > 0 ? UI.cleanInt(rec.collected_money) : ''}" placeholder="بەتاڵ = تۆمار نەکراوە"></div>
 
         <div class="date-range-compact" style="margin-top:10px">
           <div class="field compact-field"><label>📍 کاتی ناو زۆن</label><input type="time" id="f-in-zone" value="${rec.in_zone_time || ''}"></div>
@@ -1155,7 +1157,7 @@ const DriverView = (() => {
                 const newV = typeof patch[k] === 'number' ? UI.fmtNum(patch[k]) : (patch[k] ?? '(بەتاڵ)');
                 const label = FIELD_LABELS[k] || k;
                 API.Notifications.send(
-                  `خانەی «${label}» گۆڕدرا بۆ «${newV}» (لەلایەن ${editorName})`
+                  `خانەی «${label}» لە «${oldV}» گۆڕا بۆ «${newV}» (لەلایەن ${editorName}) — شۆفێر: ${rec.driver || '—'}، دابەشکار: ${rec.distributor || '—'}، مەندوب: ${rec.delegate || '—'}، زۆن: ${rec.zone || '—'}، بەروار: ${rec.record_date || '—'}`
                 ).catch(e => console.warn('هەڵە لە ناردنی نۆتیفیکەیشن:', e));
               });
 

@@ -23,16 +23,16 @@ const SettingsView = (() => {
             <span class="chip">${UI.esc(u.profession || '—')}</span>
           </div>
         </div>
-        <button class="btn btn-ghost btn-block" id="avatar-btn">${UI.icon('camera', 15)} گۆڕینی وێنەی پڕۆفایل</button>
+        <button class="btn btn-ghost btn-block" id="avatar-btn">📷 گۆڕینی وێنەی پڕۆفایل</button>
         <input type="file" id="avatar-file" accept="image/*" hidden>
 
         <form id="contact-form" novalidate style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--border)">
           <div class="field-row">
-            <div class="field"><label>${UI.icon('phone', 13)} ژمارەی تەلەفۆن ١</label><input type="tel" id="pf-phone1" dir="ltr" placeholder="07XX XXX XXXX" value="${UI.esc(u.phone_number_1 || '')}"></div>
-            <div class="field"><label>${UI.icon('phone', 13)} ژمارەی تەلەفۆن ٢</label><input type="tel" id="pf-phone2" dir="ltr" placeholder="07XX XXX XXXX" value="${UI.esc(u.phone_number_2 || '')}"></div>
+            <div class="field"><label>📞 ژمارەی تەلەفۆن ١</label><input type="tel" id="pf-phone1" dir="ltr" placeholder="07XX XXX XXXX" value="${UI.esc(u.phone_number_1 || '')}"></div>
+            <div class="field"><label>📞 ژمارەی تەلەفۆن ٢</label><input type="tel" id="pf-phone2" dir="ltr" placeholder="07XX XXX XXXX" value="${UI.esc(u.phone_number_2 || '')}"></div>
           </div>
-          <div class="field"><label>${UI.icon('pin', 13)} شوێن (لۆکەیشن)</label><input type="text" id="pf-location" placeholder="شوێنەکەت بنووسە" value="${UI.esc(u.location || '')}"></div>
-          <button class="btn btn-primary btn-block" type="submit">${UI.icon('database', 14)} پاشەکەوتکردنی زانیاری پەیوەندی</button>
+          <div class="field"><label>📍 شوێن (لۆکەیشن)</label><input type="text" id="pf-location" placeholder="شوێنەکەت بنووسە" value="${UI.esc(u.location || '')}"></div>
+          <button class="btn btn-primary btn-block" type="submit">💾 پاشەکەوتکردنی زانیاری پەیوەندی</button>
           <p class="hint">ژمارەکان و شوێنەکەت لە ویندۆی پڕۆفایلەکەتدا پیشان دەدرێن کاتێک کەسێک لەسەر وێنەکەت دادەگرێت.</p>
         </form>
       </section>
@@ -53,8 +53,8 @@ const SettingsView = (() => {
       <section class="card">
         <h3 class="section-title"><span class="sec-icon">${UI.icon('palette')}</span> ڕووکار</h3>
         <div class="seg" id="theme-seg">
-          <button type="button" data-theme="dark" class="${s.theme === 'dark' ? 'active' : ''}">${UI.icon('moon', 15)} تاریک</button>
-          <button type="button" data-theme="light" class="${s.theme === 'light' ? 'active' : ''}">${UI.icon('sun', 15)} ڕوون</button>
+          <button type="button" data-theme="dark" class="${s.theme === 'dark' ? 'active' : ''}">🌙 تاریک</button>
+          <button type="button" data-theme="light" class="${s.theme === 'light' ? 'active' : ''}">☀ ڕوون</button>
         </div>
         <p class="hint">ڕەنگی سەرەکی پلاتفۆرم:</p>
         <div class="swatches" id="swatches">
@@ -68,7 +68,7 @@ const SettingsView = (() => {
         <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
           <input type="color" id="border-color-picker" value="${s.borderColor || (s.theme === 'dark' ? '#2a3650' : '#e0e7f0')}" style="width:44px;height:36px;border:none;border-radius:8px;padding:2px;cursor:pointer;background:var(--surface-2)">
           <span style="font-size:0.85rem;color:var(--muted)" id="border-color-label">${s.borderColor ? s.borderColor : 'بنەڕەتی تیم'}</span>
-          <button type="button" id="border-color-reset" class="btn btn-sm btn-ghost" style="margin-inline-start:auto">${UI.icon('refresh', 13)} بنەڕەت</button>
+          <button type="button" id="border-color-reset" class="btn btn-sm btn-ghost" style="margin-inline-start:auto">⟲ بنەڕەت</button>
         </div>
 
         <label class="set-row" for="set-show-icons" style="margin-top:14px;border-bottom:none">
@@ -81,14 +81,14 @@ const SettingsView = (() => {
         <label class="set-row" for="set-glow" style="margin-top:14px;border-bottom:none">
           <input type="checkbox" id="set-glow" ${s.glow ? 'checked' : ''}>
           <span class="set-row-txt">
-            <span class="set-row-title">${UI.icon('bulb', 15)} گڵۆپ</span>
+            <span class="set-row-title">💡 گڵۆپ</span>
             <span class="set-row-hint">لایتێک لەچوارچێوەی کارت و ویندۆیەکاندا دەسوڕێتەوە.</span>
           </span>
         </label>
         <div id="glow-extra" ${s.glow ? '' : 'hidden'} style="margin-top:8px">
-          <div class="field"><label>${UI.icon('palette', 13)} ڕەنگی گڵۆپ</label><input type="color" id="glow-color" value="${s.glowColor || '#10b981'}"></div>
-          <div class="field"><label>${UI.icon('ruler', 13)} درێژی گڵۆپ — <b id="glow-len-val">${Math.min(60, Math.max(5, Number(s.glowLen) || 20))}%</b></label><input type="range" id="glow-len" min="5" max="60" step="5" value="${Math.min(60, Math.max(5, Number(s.glowLen) || 20))}"></div>
-          <div class="field"><label>${UI.icon('bolt', 13)} خێرایی سوڕانەوە — <b id="glow-speed-val">${Number(s.glowSpeed) || 4}</b> <span class="muted">(بەرزتر = خێراتر)</span></label><input type="range" id="glow-speed" min="1" max="10" step="1" value="${Number(s.glowSpeed) || 4}"></div>
+          <div class="field"><label>🎨 ڕەنگی گڵۆپ</label><input type="color" id="glow-color" value="${s.glowColor || '#10b981'}"></div>
+          <div class="field"><label>📏 درێژی گڵۆپ — <b id="glow-len-val">${Math.min(60, Math.max(5, Number(s.glowLen) || 20))}%</b></label><input type="range" id="glow-len" min="5" max="60" step="5" value="${Math.min(60, Math.max(5, Number(s.glowLen) || 20))}"></div>
+          <div class="field"><label>⚡ خێرایی سوڕانەوە — <b id="glow-speed-val">${Number(s.glowSpeed) || 4}</b> <span class="muted">(بەرزتر = خێراتر)</span></label><input type="range" id="glow-speed" min="1" max="10" step="1" value="${Number(s.glowSpeed) || 4}"></div>
         </div>
       </section>
 
@@ -199,8 +199,8 @@ const SettingsView = (() => {
           </label>
         </div>
         <div id="lockscreen-perm-alert" style="display:${('Notification' in window && Notification.permission !== 'granted' && s.lockScreenActions) ? 'block' : 'none'};margin-top:10px;padding:8px 12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:10px;">
-          <span style="font-size:0.82rem;color:var(--text)">${UI.icon('alert', 13)} پێویستە مۆڵەتی نۆتیفیکەیشن بە وێبگەڕەکە بدەیت:</span>
-          <button type="button" class="btn btn-sm btn-ghost" id="grant-notif-perm-btn" style="margin-top:6px;width:100%">${UI.icon('bell', 14)} پێدانی مۆڵەتی نۆتیفیکەیشن</button>
+          <span style="font-size:0.82rem;color:var(--text)">⚠️ پێویستە مۆڵەتی نۆتیفیکەیشن بە وێبگەڕەکە بدەیت:</span>
+          <button type="button" class="btn btn-sm btn-ghost" id="grant-notif-perm-btn" style="margin-top:6px;width:100%">🔔 پێدانی مۆڵەتی نۆتیفیکەیشن</button>
         </div>
       </section>` : ''}
 
@@ -217,38 +217,38 @@ const SettingsView = (() => {
           </div>
         </div>
         <p class="hint">نۆتیفیکەیشنی هەر گۆڕانکارییەک بۆ خشتەی public.notifications دەنێردرێت و لە دوای ئەم ژمارە ڕۆژە خۆکاری دەسڕدرێتەوە (بنەڕەت: ١ ڕۆژ). سڕینەوەی خۆکار لە کاتی چوونە ژوورەوە جێبەجێ دەبێت.</p>
-        <button class="btn btn-danger btn-block" id="notif-delete-all" type="button">${UI.icon('trash', 14)} سڕینەوەی هەموو نۆتیفیکەیشنەکان</button>
+        <button class="btn btn-danger btn-block" id="notif-delete-all" type="button">🗑 سڕینەوەی هەموو نۆتیفیکەیشنەکان</button>
       </section>` : ''}
 
       ${Perms.canView(u, 'set_print') ? `
       <section class="card">
         <h3 class="section-title"><span class="sec-icon">${UI.icon('printer')}</span> ناوەڕۆکی پرێنتکردن</h3>
-        <p class="hint">ئەمە شێوەی ڕاستەقینەی پرێنتکردنە. کلیک لەسەر هەر دەقێک بکە و بیگۆڕە، و بە دوگمەی ${UI.icon('eye', 12)} هەر بەشێک بشارەوە یان پیشانی بدە — دواتر «پاشەکەوتکردن» دابگرە.</p>
+        <p class="hint">ئەمە شێوەی ڕاستەقینەی پرێنتکردنە. کلیک لەسەر هەر دەقێک بکە و بیگۆڕە، و بە دوگمەی 👁 هەر بەشێک بشارەوە یان پیشانی بدە — دواتر «پاشەکەوتکردن» دابگرە.</p>
 
         <div class="print-preview-wrap">
           <div class="pp-paper">
             <div class="pp-header">
               <div class="pp-header-right">
                 <div class="pp-el ${s.printShowTitle !== false ? '' : 'pp-off'}">
-                  <button type="button" class="pp-eye ${s.printShowTitle !== false ? 'on' : ''}" data-pr-toggle="printShowTitle" title="پیشاندان/شاردنەوەی تایتڵ">${UI.icon("eye", 13)}</button>
+                  <button type="button" class="pp-eye ${s.printShowTitle !== false ? 'on' : ''}" data-pr-toggle="printShowTitle" title="پیشاندان/شاردنەوەی تایتڵ">👁</button>
                   <h1 class="pp-title" contenteditable="true" spellcheck="false" data-pr-text="printTitle">${UI.esc(String(s.printTitle || '').trim() || pd.printTitle)}</h1>
                 </div>
                 <div class="pp-el ${s.printShowSub !== false ? '' : 'pp-off'}">
-                  <button type="button" class="pp-eye ${s.printShowSub !== false ? 'on' : ''}" data-pr-toggle="printShowSub" title="پیشاندان/شاردنەوەی ژێرتایتڵ">${UI.icon("eye", 13)}</button>
+                  <button type="button" class="pp-eye ${s.printShowSub !== false ? 'on' : ''}" data-pr-toggle="printShowSub" title="پیشاندان/شاردنەوەی ژێرتایتڵ">👁</button>
                   <div class="pp-sub" contenteditable="true" spellcheck="false" data-pr-text="printSub">${UI.esc(String(s.printSub || '').trim() || pd.printSub)}</div>
                 </div>
               </div>
               <div class="pp-header-left">
                 <div class="pp-printtime">بەرواری چاپ: ${UI.esc(UI.todayStr())} • ${UI.esc(UI.nowTime())}</div>
                 <div class="pp-el ${s.printShowPrintNote !== false ? '' : 'pp-off'}">
-                  <button type="button" class="pp-eye ${s.printShowPrintNote !== false ? 'on' : ''}" data-pr-toggle="printShowPrintNote" title="پیشاندان/شاردنەوەی تێبینی چاپ">${UI.icon("eye", 13)}</button>
+                  <button type="button" class="pp-eye ${s.printShowPrintNote !== false ? 'on' : ''}" data-pr-toggle="printShowPrintNote" title="پیشاندان/شاردنەوەی تێبینی چاپ">👁</button>
                   <div class="pp-note-txt">چاپکراوە لە پانێلی بەڕێوبەر</div>
                 </div>
               </div>
             </div>
 
             <div class="pp-el ${s.printShowMeta !== false ? '' : 'pp-off'}">
-              <button type="button" class="pp-eye ${s.printShowMeta !== false ? 'on' : ''}" data-pr-toggle="printShowMeta" title="پیشاندان/شاردنەوەی زانیاری فلتەر">${UI.icon("eye", 13)}</button>
+              <button type="button" class="pp-eye ${s.printShowMeta !== false ? 'on' : ''}" data-pr-toggle="printShowMeta" title="پیشاندان/شاردنەوەی زانیاری فلتەر">👁</button>
               <div class="pp-meta">
                 <div><span>مەودای بەروار:</span> <b>تەواوی بەروارەکان</b></div>
                 <div><span>بەکارهێنەر:</span> <b>هەموو بەکارهێنەران</b></div>
@@ -279,7 +279,7 @@ const SettingsView = (() => {
             </div>
 
             <div class="pp-el ${s.printShowFooter !== false ? '' : 'pp-off'}">
-              <button type="button" class="pp-eye ${s.printShowFooter !== false ? 'on' : ''}" data-pr-toggle="printShowFooter" title="پیشاندان/شاردنەوەی فووتەر">${UI.icon("eye", 13)}</button>
+              <button type="button" class="pp-eye ${s.printShowFooter !== false ? 'on' : ''}" data-pr-toggle="printShowFooter" title="پیشاندان/شاردنەوەی فووتەر">👁</button>
               <div class="pp-footer">
                 <span contenteditable="true" spellcheck="false" data-pr-text="printFooterRight">${UI.esc(String(s.printFooterRight || '').trim() || pd.printFooterRight)}</span>
                 <span contenteditable="true" spellcheck="false" data-pr-text="printFooterLeft">${UI.esc(String(s.printFooterLeft || '').trim() || pd.printFooterLeft)}</span>
@@ -290,7 +290,7 @@ const SettingsView = (() => {
 
         <div class="field-row" style="margin-top:12px">
           <button class="btn btn-primary" id="pr-save" type="button" style="flex:1">💾 پاشەکەوتکردن</button>
-          <button class="btn btn-ghost" id="pr-reset" type="button" style="flex:1">${UI.icon("refresh", 14)} گەڕانەوە بۆ بنەڕەت</button>
+          <button class="btn btn-ghost" id="pr-reset" type="button" style="flex:1">⟲ گەڕانەوە بۆ بنەڕەت</button>
         </div>
       </section>` : ''}
 
@@ -337,7 +337,7 @@ const SettingsView = (() => {
             <option value="sans-serif" ${s.fontFamily === 'sans-serif' ? 'selected' : ''}>فۆنتی سیستەم</option>
           </select>
         </div>
-        <button class="btn btn-ghost btn-block" id="font-reset-btn" type="button">${UI.icon("refresh", 14)} گەڕانەوە بۆ بنەڕەت</button>
+        <button class="btn btn-ghost btn-block" id="font-reset-btn" type="button">⟲ گەڕانەوە بۆ بنەڕەت</button>
       </section>` : ''}
 
       ${Perms.canView(u, 'set_backup') ? `
@@ -352,13 +352,13 @@ const SettingsView = (() => {
           <div class="field" style="flex:1">
             <label>شوێنی باک ئەپ</label>
             <div id="backup-dir-display" style="padding:8px 12px;background:var(--card-bg,#1a2332);border:1px solid var(--border,#2a3a4e);border-radius:10px;font-size:0.85rem;word-break:break-all;min-height:38px;display:flex;align-items:center">
-              ${s.backupDirName ? '<span style="color:var(--accent)">${UI.icon("folder", 13)} ' + UI.esc(s.backupDirName) + '</span>' : '<span style="color:var(--muted)">هیچ شوێنێک هەڵنەبژێردراوە</span>'}
+              ${s.backupDirName ? '<span style="color:var(--accent)">📁 ' + UI.esc(s.backupDirName) + '</span>' : '<span style="color:var(--muted)">هیچ شوێنێک هەڵنەبژێردراوە</span>'}
             </div>
           </div>
         </div>
 
         <div class="field-row" style="gap:8px;margin-top:8px">
-          <button class="btn btn-primary" id="backup-choose-dir" type="button" style="flex:1">${UI.icon("folderOpen", 14)} هەڵبژاردنی شوێنی باک ئەپ</button>
+          <button class="btn btn-primary" id="backup-choose-dir" type="button" style="flex:1">📂 هەڵبژاردنی شوێنی باک ئەپ</button>
           <button class="btn btn-ghost" id="backup-run-now" type="button" style="flex:1" ${s.backupDirName ? '' : 'disabled'}>▶ باک ئەپی ئێستا</button>
         </div>
 
@@ -684,7 +684,7 @@ const SettingsView = (() => {
         await backupIdbSet(handle);
         Store.saveSettings({ backupDirName: handle.name });
         const disp = $('#backup-dir-display', el);
-        if (disp) disp.innerHTML = '<span style="color:var(--accent)">${UI.icon("folder", 13)} ' + UI.esc(handle.name) + '</span>';
+        if (disp) disp.innerHTML = '<span style="color:var(--accent)">📁 ' + UI.esc(handle.name) + '</span>';
         const runBtn = $('#backup-run-now', el);
         if (runBtn) runBtn.disabled = false;
         UI.toast(`شوێنی باک ئەپ هەڵبژێردرا: ${handle.name} ✓`, 'success');

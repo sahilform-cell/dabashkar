@@ -197,9 +197,9 @@ const ReportsView = (() => {
         </div>
         <div class="filter-foot" style="justify-content:flex-end;gap:8px;margin-top:6px">
           ${canSecondOnly ? `<button class="chip-btn ${state.secondOnly ? 'active' : ''}" id="rep-second-only" type="button">تەنها باری دووەم</button>` : ''}
-          ${canOutZone ? `<button class="chip-btn ${state.outZoneOnly ? 'active' : ''}" id="rep-out-zone-only" type="button">${UI.icon('exit', 14)} دەرێی زۆن</button>` : ''}
-          ${canArrival ? `<button class="chip-btn ${state.arrivalOnly ? 'active' : ''}" id="rep-arrival-only" type="button">${UI.icon('flag', 14)} گەشتنەوە</button>` : ''}
-          <button class="btn btn-ghost btn-sm" id="rep-refresh">${UI.icon('refresh', 14)} نوێکردنەوە</button>
+          ${canOutZone ? `<button class="chip-btn ${state.outZoneOnly ? 'active' : ''}" id="rep-out-zone-only" type="button">🚏 دەرێی زۆن</button>` : ''}
+          ${canArrival ? `<button class="chip-btn ${state.arrivalOnly ? 'active' : ''}" id="rep-arrival-only" type="button">🏁 گەشتنەوە</button>` : ''}
+          <button class="btn btn-ghost btn-sm" id="rep-refresh">⟳ نوێکردنەوە</button>
         </div>
       </section>
 
@@ -336,13 +336,13 @@ const ReportsView = (() => {
     if (!rows.length) {
       tableEl.innerHTML = `
         <div class="empty-state">
-          <div class="empty-ico">${UI.icon('folder', 34)}</div>
+          <div class="empty-ico">📭</div>
           <p>هیچ تۆمارێک نەدۆزرایەوە بۆ ئەم مەودایە یان فلتەرەکانەوە.</p>
         </div>`;
     } else if (!visCols.length) {
       tableEl.innerHTML = `
         <div class="empty-state">
-          <div class="empty-ico">${UI.icon('eye-off', 34)}</div>
+          <div class="empty-ico">🙈</div>
           <p>هەموو ستوونەکان شاردراونەتەوە — لە ڕێکخستنەکان ستوونێک پیشان بدەرەوە.</p>
         </div>`;
     } else {

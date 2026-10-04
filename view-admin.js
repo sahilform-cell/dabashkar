@@ -204,9 +204,9 @@ const AdminView = (() => {
             <p class="hero-sub">تەواوی داتاکانی هەر دوو پڕۆژەی Supabase و کۆنتڕۆڵی CRUD</p>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <button type="button" class="chip-btn ${state.outZoneOnly ? 'active' : ''}" id="admin-out-zone-only" title="تەنها ئەو گەشتانە پیشان بدە کە دەرێی زۆنیان تۆمارکردووە">${UI.icon('exit', 14)} دەرێی زۆن</button>
-            <button type="button" class="chip-btn ${state.arrivalOnly ? 'active' : ''}" id="admin-arrival-only" title="تەنها ئەو گەشتانە پیشان بدە کە گەشتنەوەیان تۆمارکردووە">${UI.icon('flag', 14)} گەشتنەوە</button>
-            <button class="btn btn-ghost btn-sm" id="admin-refresh-btn">${UI.icon('refresh', 14)} نوێکردنەوە</button>
+            <button type="button" class="chip-btn ${state.outZoneOnly ? 'active' : ''}" id="admin-out-zone-only" title="تەنها ئەو گەشتانە پیشان بدە کە دەرێی زۆنیان تۆمارکردووە">🚏 دەرێی زۆن</button>
+            <button type="button" class="chip-btn ${state.arrivalOnly ? 'active' : ''}" id="admin-arrival-only" title="تەنها ئەو گەشتانە پیشان بدە کە گەشتنەوەیان تۆمارکردووە">🏁 گەشتنەوە</button>
+            <button class="btn btn-ghost btn-sm" id="admin-refresh-btn">⟳ نوێکردنەوە</button>
           </div>
         </div>
 
@@ -243,7 +243,7 @@ const AdminView = (() => {
       el.querySelectorAll('.admin-tab-btn').forEach(x => x.classList.toggle('active', x.dataset.sub === state.subtab));
     }
     if (!visibleSubs.length) {
-      $('#admin-content', el).innerHTML = `<div class="empty-state"><div class="empty-ico">${UI.icon('lock', 34)}</div><p>هیچ بەشێک لە پانێلی بەڕێوەبردن بۆ پیشەکەت چالاک نەکراوە.</p></div>`;
+      $('#admin-content', el).innerHTML = `<div class="empty-state"><div class="empty-ico">🔒</div><p>هیچ بەشێک لە پانێلی بەڕێوەبردن بۆ پیشەکەت چالاک نەکراوە.</p></div>`;
       $('#admin-refresh-btn', el)?.addEventListener('click', () => loadData());
       return;
     }
@@ -309,16 +309,16 @@ const AdminView = (() => {
           </div>
           <div class="admin-actions-bar">
             <button type="button" class="btn btn-ghost btn-sm" id="admin-print-btn" title="پرێنتکردنی داتای فلتەرکراو">
-              ${UI.icon('printer', 14)} پرێنتکردن
+              🖨️ پرێنتکردن
             </button>
             <button type="button" class="btn btn-ghost btn-sm" id="admin-excel-btn" title="هەناردەکردنی بەکارهێنەران بۆ ئێکسڵ">
-              ${UI.icon('chart', 14)} بەئێکسڵکردن
+              📊 بەئێکسڵکردن
             </button>
             <button type="button" class="btn btn-ghost btn-sm" id="admin-fix-ids-btn" title="پڕکردنەوەی ئایدی تۆمارە کۆنەکان لە usersv2">
-              ${UI.icon('link', 14)} ئایدیەکان ڕێکبخە
+              🔗 ئایدیەکان ڕێکبخە
             </button>
             <button type="button" class="btn btn-primary btn-sm" id="admin-add-rec-btn">
-              ${UI.icon('plus', 14)} زیادکردنی باری نوێ
+              ➕ زیادکردنی باری نوێ
             </button>
           </div>
         </div>
@@ -499,11 +499,11 @@ const AdminView = (() => {
     // تۆتاڵەکان — بە ئاسایی تەنها باری یەکەم؛ کاتێک دوگمەی «تەنها باری دووەم» چالاکە تەنها باری دووەم پیشان دەدرێت
     const totalsHtml = state.secondOnly ? `
       <div class="totals-section">
-        <div class="totals-section-head second">${UI.icon('truck', 15)} کۆیەکان — باری دووەم <span class="totals-count">${UI.fmtNum(secondRows.length)} گەشت</span></div>
+        <div class="totals-section-head second">🚚 کۆیەکان — باری دووەم <span class="totals-count">${UI.fmtNum(secondRows.length)} گەشت</span></div>
         <div class="totals-grid">${totalsCardsHtml(secondRows, computeTotals(secondRows))}</div>
       </div>` : `
       <div class="totals-section">
-        <div class="totals-section-head">${UI.icon('truck', 15)} کۆیەکان — باری یەکەم <span class="totals-count">${UI.fmtNum(firstRows.length)} گەشت</span></div>
+        <div class="totals-section-head">🚚 کۆیەکان — باری یەکەم <span class="totals-count">${UI.fmtNum(firstRows.length)} گەشت</span></div>
         <div class="totals-grid">${totalsCardsHtml(firstRows, computeTotals(firstRows))}</div>
       </div>`;
 
@@ -643,19 +643,19 @@ const AdminView = (() => {
           <div class="field"><label>ژمارەی پارچەکان *</label><input id="m-rec-pcs" type="number" min="0" step="1" value="${rec ? UI.cleanInt(rec.pieces_count) : ''}" placeholder="0"></div>
         </div>
         <div class="field"><label>ژمارەی وەسڵ *</label><input id="m-rec-rcp" type="number" min="0" step="1" value="${rec ? UI.cleanInt(rec.receipt_number) : ''}" placeholder="0"></div>
-        <div class="field"><label>${UI.icon('coins', 13)} پارەی هێنراوە (د.ع)</label><input id="m-rec-mny" type="number" min="0" step="1" inputmode="numeric" value="${rec && Number(rec.collected_money || 0) > 0 ? UI.cleanInt(rec.collected_money) : ''}" placeholder="بەتاڵ = تۆمار نەکراوە"></div>
+        <div class="field"><label>💰 پارەی هێنراوە (د.ع)</label><input id="m-rec-mny" type="number" min="0" step="1" inputmode="numeric" value="${rec && Number(rec.collected_money || 0) > 0 ? UI.cleanInt(rec.collected_money) : ''}" placeholder="بەتاڵ = تۆمار نەکراوە"></div>
 
         <div class="date-range-compact" style="margin-top:10px">
-          <div class="field compact-field"><label>${UI.icon('enter', 13)} کاتی ناو زۆن</label><input type="time" id="m-rec-tin" value="${rec ? rec.in_zone_time || '' : ''}"></div>
-          <div class="field compact-field"><label>${UI.icon('exit', 13)} کاتی دەرێی زۆن</label><input type="time" id="m-rec-tout" value="${rec ? rec.out_zone_time || '' : ''}"></div>
+          <div class="field compact-field"><label>📍 کاتی ناو زۆن</label><input type="time" id="m-rec-tin" value="${rec ? rec.in_zone_time || '' : ''}"></div>
+          <div class="field compact-field"><label>🚏 کاتی دەرێی زۆن</label><input type="time" id="m-rec-tout" value="${rec ? rec.out_zone_time || '' : ''}"></div>
         </div>
         <div class="date-range-compact">
-          <div class="field compact-field"><label>${UI.icon('flag', 13)} کاتی گەشتنەوە</label><input type="time" id="m-rec-tarr" value="${rec ? rec.arrival_time || '' : ''}"></div>
+          <div class="field compact-field"><label>🏁 کاتی گەشتنەوە</label><input type="time" id="m-rec-tarr" value="${rec ? rec.arrival_time || '' : ''}"></div>
           <div class="field compact-field"></div>
         </div>
         ${supportsWorkTime ? `
         <div class="field compact-field">
-          <label>${UI.icon('clock', 13)} کاتی کارکردن (ئارەزوومەندانە — بۆ ڕۆژانی داهاتوو)</label>
+          <label>⏱️ کاتی کارکردن (ئارەزوومەندانە — بۆ ڕۆژانی داهاتوو)</label>
           <input type="text" id="m-rec-wtime" placeholder="کاتژمێر:خولەک — بۆ نموونە 8:30" value="${rec ? UI.esc(rec.average_time || '') : ''}">
           <p class="hint" style="margin:4px 0 0">ئەگەر بۆ ڕۆژی داهاتوو کاتی کارکردن دابنێیت، پێویست ناکات کاتی گەشتنەوە تۆمار بکەیت — لە ستوونی «کاتی کارکردن»ی خشتەکەدا دەردەکەوێت. ئەگەر کاتی گەشتنەوە هەبێت، لە خۆی حیساب دەکرێت (گەشتنەوە − کاتی دەستپێک).</p>
         </div>` : ''}
@@ -682,8 +682,7 @@ const AdminView = (() => {
     setupSecondFieldToggle(body, '#btn-toggle-zone2', '#wrap-zone2', '#m-rec-zn-2');
 
     const { close } = UI.openModal({
-      title: isEdit ? 'دەستکاریکردنی تۆماری گەیاندن' : 'زیادکردنی باری نوێ',
-      titleIcon: isEdit ? 'edit' : 'plus',
+      title: isEdit ? '✏️ دەستکاریکردنی تۆماری گەیاندن' : '➕ زیادکردنی باری نوێ',
       body,
       actions: [
         { label: 'پاشگەزبوونەوە', className: 'btn-ghost', onClick: () => close() },
@@ -1036,8 +1035,7 @@ const AdminView = (() => {
     const hasIds = await API.Records.hasUserIds().catch(() => false);
     if (!hasIds) {
       UI.openModal({
-        title: 'ستوونەکانی ئایدی نییە',
-        titleIcon: 'alert',
+        title: '⚠️ ستوونەکانی ئایدی نییە',
         body: `<p class="confirm-msg">ستوونەکانی <b>driver_id</b>، <b>distributor_id</b> و <b>delegate_id</b> لە خشتەی <b>delivery_records</b> دا زیاد نەکراون.<br><br>تکایە لە داتابەیسی Supabase ئەم ستوونانە وەک <b>text</b> زیاد بکە پاشان ئەم دوگمەیە دووبارە بەکاربهێنە:</p>
         <pre style="background:var(--bg-2,#f5f5f5);padding:10px;border-radius:8px;direction:ltr;text-align:left;font-size:0.78rem">alter table delivery_records
   add column driver_id text,
@@ -1061,8 +1059,7 @@ const AdminView = (() => {
 
     try {
       progressModal = UI.openModal({
-        title: 'پڕکردنەوەی ئایدیەکان',
-        titleIcon: 'link',
+        title: '🔗 پڕکردنەوەی ئایدیەکان',
         body: `<p class="confirm-msg" id="backfill-progress-txt">دەستپێدەکات...</p>`,
         actions: [],
       });
@@ -1135,7 +1132,7 @@ const AdminView = (() => {
           <div class="excel-quick-btns">
             <button type="button" class="btn btn-ghost btn-sm" id="ex-select-all">✓ هەمووان</button>
             <button type="button" class="btn btn-ghost btn-sm" id="ex-deselect-all">✕ هیچ</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="ex-only-active" title="تەنها ئەوانەی تۆماریان هەیە">${UI.icon('truck', 14)} چالاکەکان</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="ex-only-active" title="تەنها ئەوانەی تۆماریان هەیە">🚚 چالاکەکان</button>
           </div>
         </div>
 
@@ -1223,14 +1220,13 @@ const AdminView = (() => {
     renderModalContent();
 
     const { close } = UI.openModal({
-      title: 'هەناردەکردنی تۆمارەکان بۆ ئێکسڵ (Excel)',
-      titleIcon: 'chart',
+      title: '📊 هەناردەکردنی تۆمارەکان بۆ ئێکسڵ (Excel)',
       size: 'lg',
       body,
       actions: [
         { label: 'پاشگەزبوونەوە', className: 'btn-ghost', onClick: () => close() },
         {
-          label: `${UI.icon('download', 14)} دروستکردنی فایلی ئێکسڵ`,
+          label: '📥 دروستکردنی فایلی ئێکسڵ',
           className: 'btn-primary',
           onClick: async (backdrop) => {
             if (!selectedUsers.size) {
@@ -1525,8 +1521,8 @@ const AdminView = (() => {
         <div class="admin-header-row" style="margin-bottom:6px">
           <h3 style="font-size:0.96rem"><span class="sec-icon">${UI.icon('users')}</span> بەڕێوەبردنی بەکارهێنەران (خشتەی usersv2)</h3>
           <div style="display:flex;gap:8px">
-            <button type="button" class="btn btn-ghost btn-sm" id="adm-toggle-pass">${UI.icon('eye', 14)} پشاندانی هەموو پاسۆڕدەکان</button>
-            <button type="button" class="btn btn-primary btn-sm" id="admin-add-user-btn">${UI.icon("plus", 14)} بەکارهێنەری نوێ</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="adm-toggle-pass">👁️ پشاندانی هەموو پاسۆڕدەکان</button>
+            <button type="button" class="btn btn-primary btn-sm" id="admin-add-user-btn">➕ بەکارهێنەری نوێ</button>
           </div>
         </div>
 
@@ -1578,9 +1574,9 @@ const AdminView = (() => {
               <span>${UI.esc(u.location)}</span>
             </div>` : ''}
             <div class="user-card-actions">
-              <button type="button" class="btn btn-ghost btn-sm adm-usr-view" data-user-id="${UI.esc(String(u.id))}" title="بینینی کارەکان">${UI.icon('clipboard', 14)} کارەکانی</button>
-              <button type="button" class="btn btn-ghost btn-sm adm-usr-edit" data-id="${u.id}">${UI.icon("edit", 14)} دەستکاری</button>
-              <button type="button" class="btn btn-danger btn-sm adm-usr-del" data-id="${u.id}">${UI.icon('trash', 14)}</button>
+              <button type="button" class="btn btn-ghost btn-sm adm-usr-view" data-user-id="${UI.esc(String(u.id))}" title="بینینی کارەکان">📋 کارەکانی</button>
+              <button type="button" class="btn btn-ghost btn-sm adm-usr-edit" data-id="${u.id}">✏️ دەستکاری</button>
+              <button type="button" class="btn btn-danger btn-sm adm-usr-del" data-id="${u.id}">🗑️</button>
             </div>
           </div>`).join('');
 
@@ -1618,7 +1614,7 @@ const AdminView = (() => {
     $('#adm-toggle-pass', wrap).addEventListener('click', () => {
       state.showAllPass = !state.showAllPass;
       const btn = $('#adm-toggle-pass', wrap);
-      btn.innerHTML = state.showAllPass ? `${UI.icon('eye-off', 14)} شاردنەوەی هەموو پاسۆڕدەکان` : `${UI.icon('eye', 14)} پشاندانی هەموو پاسۆڕدەکان`;
+      btn.textContent = state.showAllPass ? '🙈 شاردنەوەی هەموو پاسۆڕدەکان' : '👁️ پشاندانی هەموو پاسۆڕدەکان';
       const grid = $('#adm-user-cards-grid', wrap);
       if (grid) grid.classList.toggle('show-all-pass', state.showAllPass);
     });
@@ -1663,17 +1659,17 @@ const AdminView = (() => {
           <input type="text" id="mu-pass" inputmode="numeric" maxlength="4" value="${user ? UI.esc(user.password || '') : ''}" placeholder="1234" class="pin-input">
         </div>
         <div class="field-row">
-          <div class="field"><label>${UI.icon('phone', 13)} ژمارەی تەلەفۆن ١</label><input type="tel" id="mu-phone1" dir="ltr" placeholder="07XX XXX XXXX" value="${user ? UI.esc(user.phone_number_1 || '') : ''}"></div>
-          <div class="field"><label>${UI.icon('phone', 13)} ژمارەی تەلەفۆن ٢</label><input type="tel" id="mu-phone2" dir="ltr" placeholder="07XX XXX XXXX" value="${user ? UI.esc(user.phone_number_2 || '') : ''}"></div>
+          <div class="field"><label>📞 ژمارەی تەلەفۆن ١</label><input type="tel" id="mu-phone1" dir="ltr" placeholder="07XX XXX XXXX" value="${user ? UI.esc(user.phone_number_1 || '') : ''}"></div>
+          <div class="field"><label>📞 ژمارەی تەلەفۆن ٢</label><input type="tel" id="mu-phone2" dir="ltr" placeholder="07XX XXX XXXX" value="${user ? UI.esc(user.phone_number_2 || '') : ''}"></div>
         </div>
-        <div class="field"><label>${UI.icon('pin', 13)} شوێن (لۆکەیشن)</label><input type="text" id="mu-location" placeholder="شوێنی بەکارهێنەر" value="${user ? UI.esc(user.location || '') : ''}"></div>
+        <div class="field"><label>📍 شوێن (لۆکەیشن)</label><input type="text" id="mu-location" placeholder="شوێنی بەکارهێنەر" value="${user ? UI.esc(user.location || '') : ''}"></div>
         <div class="field">
-          <label>${UI.icon('camera', 13)} وێنەی پڕۆفایل</label>
+          <label>📷 وێنەی پڕۆفایل</label>
           <div class="mu-avatar-row">
             <div id="mu-avatar-preview"></div>
             <div class="mu-avatar-actions">
-              <button type="button" class="btn btn-ghost btn-sm" id="mu-avatar-btn">${UI.icon('image', 14)} هەڵبژاردنی وێنە</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="mu-avatar-clear">${UI.icon('trash', 14)} لابردنی وێنە</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="mu-avatar-btn">🖼 هەڵبژاردنی وێنە</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="mu-avatar-clear">🗑 لابردنی وێنە</button>
             </div>
           </div>
           <input type="file" id="mu-avatar-file" accept="image/*" hidden>
@@ -1715,8 +1711,7 @@ const AdminView = (() => {
     });
 
     const { close } = UI.openModal({
-      title: isEdit ? 'دەستکاریکردنی بەکارهێنەر' : 'زیادکردنی بەکارهێنەری نوێ',
-      titleIcon: isEdit ? 'edit' : 'plus',
+      title: isEdit ? '✏️ دەستکاریکردنی بەکارهێنەر' : '➕ زیادکردنی بەکارهێنەری نوێ',
       size: 'wide',
       body,
       actions: [
@@ -1816,7 +1811,7 @@ const AdminView = (() => {
       <section class="card filter-card">
         <div class="admin-header-row" style="margin-bottom:6px">
           <h3 style="font-size:0.96rem"><span class="sec-icon">${UI.icon('map')}</span> بەڕێوەبردنی زۆنەکان (خشتەی zonesv2)</h3>
-          <button type="button" class="btn btn-primary btn-sm" id="admin-add-zone-btn">${UI.icon("plus", 14)} زۆنی نوێ</button>
+          <button type="button" class="btn btn-primary btn-sm" id="admin-add-zone-btn">➕ زۆنی نوێ</button>
         </div>
 
         <div class="field">
@@ -1834,10 +1829,10 @@ const AdminView = (() => {
       grid.innerHTML = !rows.length ? `<div class="empty-state" style="grid-column:1/-1"><p>هیچ زۆنێک نەدۆزرایەوە.</p></div>` :
         rows.map(z => `
           <div class="zone-card">
-            <span class="zone-name">${UI.icon('map', 14)} ${UI.esc(z.name)}</span>
+            <span class="zone-name">🗺️ ${UI.esc(z.name)}</span>
             <div class="zone-actions">
-              <button type="button" class="btn-action-sm btn-edit adm-zn-edit" data-id="${z.id}">${UI.icon("edit", 13)}</button>
-              <button type="button" class="btn-action-sm btn-del adm-zn-del" data-id="${z.id}">${UI.icon('trash', 13)}</button>
+              <button type="button" class="btn-action-sm btn-edit adm-zn-edit" data-id="${z.id}">✏️</button>
+              <button type="button" class="btn-action-sm btn-del adm-zn-del" data-id="${z.id}">🗑️</button>
             </div>
           </div>`).join('');
 
@@ -1879,8 +1874,7 @@ const AdminView = (() => {
       </form>`;
 
     const { close } = UI.openModal({
-      title: isEdit ? 'دەستکاریکردنی زۆن' : 'زیادکردنی زۆنی نوێ',
-      titleIcon: isEdit ? 'edit' : 'plus',
+      title: isEdit ? '✏️ دەستکاریکردنی زۆن' : '➕ زیادکردنی زۆنی نوێ',
       size: 'wide',
       body,
       actions: [
