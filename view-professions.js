@@ -239,7 +239,7 @@ const ProfessionsView = (() => {
         <div class="field" style="margin-bottom:0">
           <input type="search" id="prf-user-search" placeholder="گەڕان بۆ ناو یان پیشە..." value="${UI.esc(state.userSearch)}" autocomplete="off">
         </div>
-        <p class="hint" style="margin:6px 0 0">بە دووگمەی 🔐 دەسەڵاتەکان بۆ هەر یوسەرێک دەتوانیت دیاری بکەیت چی ببینێت و چ کردار ئەنجام بدات — لەوانەش بینینی داتای هەموو یوسەرانی تر لە ڕاپۆرتدا.</p>
+        <p class="hint" style="margin:6px 0 0">بە دووگمەی 🔐 دەسەڵاتەکان بۆ هەر یوسەرێک دەتوانیت دیاری بکەیت چی ببینێت و چ کردار ئەنجام بدات. بە دووگمەی 🔒 بلۆک بوون دەتوانیت هەر خانەیەک پاش تۆمار قفڵ بکات.</p>
       </section>
       <div class="prf-list" id="prf-user-list"></div>`;
 
@@ -260,22 +260,35 @@ const ProfessionsView = (() => {
         .filter(u => !q || [u.username, u.profession].some(v => UI.norm(v).includes(q)))
         .sort((a, b) => (rankOf(a) - rankOf(b)) || byName(a, b));
 
-      listEl.innerHTML = list.map(u => `
-        <div class="card prf-card prf-user-card clickable-row" data-uid="${UI.esc(String(u.id))}">
-          ${UI.avatarHtml(u, 44)}
-          <div class="prf-card-info" style="flex:1">
-            <b>${UI.esc(u.username)}</b>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
-              <span class="chip">${UI.esc(u.profession || '—')}</span>
+      listEl.innerHTML = list.map(u => {
+        const cfg = Store.getPermsConfig();
+        const locks = cfg.fieldLocks && cfg.fieldLocks[String(u.id)];
+        const hasLocks = locks && Object.values(locks).some(l => l && (l.type === 'instant' || (l.type === 'timed' && l.minutes > 0)));
+        return `
+          <div class="card prf-card prf-user-card clickable-row" data-uid="${UI.esc(String(u.id))}">
+            ${UI.avatarHtml(u, 44)}
+            <div class="prf-card-info" style="flex:1">
+              <b>${UI.esc(u.username)}</b>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+                <span class="chip">${UI.esc(u.profession || '—')}</span>
+                ${hasLocks ? '<span class="chip" style="background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)">🔒 بلۆک چالاکە</span>' : ''}
+              </div>
             </div>
-          </div>
-          <button type="button" class="btn btn-ghost btn-sm prf-perms-btn">🔐 دەسەڵاتەکان</button>
-        </div>`).join('') || '<div class="empty-state"><p>هیچ یوسەرێک نەدۆزرایەوە.</p></div>';
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button type="button" class="btn btn-ghost btn-sm prf-perms-btn">🔐 دەسەڵاتەکان</button>
+              <button type="button" class="btn btn-ghost btn-sm prf-lock-btn" title="ئۆپشنی بلۆک بوونی خانەکانی دەرچوون بۆ ئەم یوسەرە">🔒 بلۆک بوون</button>
+            </div>
+          </div>`;
+      }).join('') || '<div class="empty-state"><p>هیچ یوسەرێک نەدۆزرایەوە.</p></div>';
 
       listEl.querySelectorAll('.prf-user-card').forEach(card => {
         card.querySelector('.prf-perms-btn').addEventListener('click', () => {
           const u = users.find(x => String(x.id) === card.dataset.uid);
           if (u) openPermsEditor({ user: u });
+        });
+        card.querySelector('.prf-lock-btn').addEventListener('click', () => {
+          const u = users.find(x => String(x.id) === card.dataset.uid);
+          if (u) openLockEditor(u, renderList);
         });
       });
     }
@@ -382,5 +395,167 @@ const ProfessionsView = (() => {
     });
   }
 
+  /* ---------------- ئێدیتەری بلۆک بوون ---------------- */
+
+  // خانەکانی دەرچوون کە دەتوانرێن قفڵ بکرێن
+  const LOCK_FIELDS = [
+    { key: 'record_time',   label: '🚚 کاتی دەرچوون',    hint: 'کاتی تۆمارکردنی دەرچوون' },
+    { key: 'in_zone_time',  label: '📍 کاتی ناو زۆن',    hint: 'کاتی گەیشتن بە ناو زۆن' },
+    { key: 'out_zone_time', label: '🚏 کاتی دەرێی زۆن',  hint: 'کاتی دەرچوون لە زۆن' },
+    { key: 'arrival_time',  label: '🏁 کاتی گەشتنەوە',   hint: 'کاتی گەیشتنەوە بۆ خاڵی دەستپێک' },
+  ];
+
+  function openLockEditor(user, onSaved = null) {
+    const cfg = JSON.parse(JSON.stringify(Store.getPermsConfig()));
+    const userId = String(user.id);
+    const curLocks = (cfg.fieldLocks && cfg.fieldLocks[userId]) || {};
+
+    const body = document.createElement('div');
+
+    function renderBody() {
+      body.innerHTML = `
+        <p class="hint" style="margin-top:0">
+          یوسەر: <b>${UI.esc(user.username)}</b> — پیشە: <b>${UI.esc(user.profession || '—')}</b><br>
+          بۆ هەر خانەیەک دوو ئۆپشن هەیە:
+          <b>بلۆک بوون بە کات</b> — دوای X خولەک لە کاتی تۆمارکردنی کردار خانەکە قفڵ دەبێت.<br>
+          <b>بلۆک بوون دوای تۆمار</b> — ڕاستەوخۆ پاش تۆمارکردنی کردار خانەکە قفڵ دەبێت.
+        </p>
+        <div class="prf-lock-grid">
+          ${LOCK_FIELDS.map(f => {
+            const lock = curLocks[f.key] || {};
+            const isInstant = lock.type === 'instant';
+            const isTimed   = lock.type === 'timed';
+            const mins      = lock.minutes || '';
+            return `
+              <div class="prf-lock-row card" style="padding:12px 14px;margin-bottom:8px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                  <span style="font-weight:700;font-size:0.95rem">${f.label}</span>
+                  <span style="font-size:0.75rem;color:var(--muted)">${f.hint}</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <!-- ئۆپشنی بلۆک بوون بە کات -->
+                  <label class="prf-lock-option" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                    <input type="checkbox" class="lock-chk-timed" data-field="${f.key}" ${isTimed ? 'checked' : ''}>
+                    <span>⏱️ بلۆک بوون بە کات — دوای</span>
+                    <input type="number" class="lock-mins-input" data-field="${f.key}"
+                      min="1" max="1440" step="1"
+                      value="${isTimed ? mins : ''}"
+                      placeholder="خولەک"
+                      style="width:70px;padding:2px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg-2);color:var(--text);font-size:0.9rem;text-align:center"
+                      ${!isTimed ? 'disabled' : ''}>
+                    <span>خولەک</span>
+                  </label>
+                  <!-- ئۆپشنی بلۆک بوون دوای تۆمار -->
+                  <label class="prf-lock-option" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                    <input type="checkbox" class="lock-chk-instant" data-field="${f.key}" ${isInstant ? 'checked' : ''}>
+                    <span>🔒 بلۆک بوون دوای تۆمار — ڕاستەوخۆ قفڵ دەبێت</span>
+                  </label>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>`;
+
+      // ئیڤێنتی چالاک/ناچالاک کردنی خانەی خولەک
+      body.querySelectorAll('.lock-chk-timed').forEach(chk => {
+        const field = chk.dataset.field;
+        const minsInp = body.querySelector(`.lock-mins-input[data-field="${field}"]`);
+        const instChk = body.querySelector(`.lock-chk-instant[data-field="${field}"]`);
+
+        chk.addEventListener('change', () => {
+          if (minsInp) minsInp.disabled = !chk.checked;
+          if (chk.checked && instChk) instChk.checked = false; // ناتوانن هەردووکیان چالاک بن
+        });
+      });
+
+      body.querySelectorAll('.lock-chk-instant').forEach(chk => {
+        const field = chk.dataset.field;
+        const timedChk = body.querySelector(`.lock-chk-timed[data-field="${field}"]`);
+        const minsInp  = body.querySelector(`.lock-mins-input[data-field="${field}"]`);
+
+        chk.addEventListener('change', () => {
+          if (chk.checked && timedChk) {
+            timedChk.checked = false;
+            if (minsInp) minsInp.disabled = true;
+          }
+        });
+      });
+    }
+
+    renderBody();
+
+    const modal = UI.openModal({
+      title: `🔒 بلۆک بوونی خانەکان — ${user.username}`,
+      wide: true,
+      body,
+      actions: [
+        { label: 'پاشگەزبوونەوە', className: 'btn-ghost', onClick: () => modal.close() },
+        {
+          label: '🗑 سڕینەوەی هەموو بلۆکەکان', className: 'btn-ghost', onClick: async () => {
+            const ok = await UI.confirmDialog(
+              `هەموو ڕێکخستنەکانی بلۆک بوون بۆ یوسەری «${user.username}» دەسڕدرێنەوە. دڵنیاییت؟`,
+              { danger: true, okLabel: 'بەڵێ، بسڕەوە', cancelLabel: 'پاشگەزبوونەوە' }
+            );
+            if (!ok) return;
+            try {
+              const updCfg = JSON.parse(JSON.stringify(Store.getPermsConfig()));
+              if (updCfg.fieldLocks) delete updCfg.fieldLocks[userId];
+              await Store.savePermsConfig(updCfg);
+              UI.toast('هەموو بلۆکەکانی ئەم یوسەرە سڕدرانەوە ✓', 'success');
+              modal.close();
+              if (onSaved) onSaved();
+            } catch (err) {
+              UI.toast('هەڵە لە سڕینەوە: ' + err.message, 'error', 4200);
+            }
+          }
+        },
+        {
+          label: '💾 پاشەکەوتکردن', className: 'btn-primary', onClick: async () => {
+            // خوێندنەوەی نرخەکان لە فۆڕمەکە
+            const newLocks = {};
+            let hasError = false;
+
+            LOCK_FIELDS.forEach(f => {
+              const timedChk  = body.querySelector(`.lock-chk-timed[data-field="${f.key}"]`);
+              const instChk   = body.querySelector(`.lock-chk-instant[data-field="${f.key}"]`);
+              const minsInp   = body.querySelector(`.lock-mins-input[data-field="${f.key}"]`);
+
+              if (timedChk && timedChk.checked) {
+                const mins = parseInt(minsInp?.value || '0', 10);
+                if (!mins || mins < 1) {
+                  UI.toast(`تکایە ژمارەی خولەکی بلۆک بوون بۆ «${f.label}» بنووسە`, 'warning', 4000);
+                  if (minsInp) minsInp.style.outline = '2px solid var(--error, red)';
+                  hasError = true;
+                  return;
+                }
+                newLocks[f.key] = { type: 'timed', minutes: mins };
+              } else if (instChk && instChk.checked) {
+                newLocks[f.key] = { type: 'instant' };
+              }
+            });
+
+            if (hasError) return;
+
+            try {
+              const updCfg = JSON.parse(JSON.stringify(Store.getPermsConfig()));
+              updCfg.fieldLocks = updCfg.fieldLocks || {};
+              if (Object.keys(newLocks).length) {
+                updCfg.fieldLocks[userId] = newLocks;
+              } else {
+                delete updCfg.fieldLocks[userId];
+              }
+              await Store.savePermsConfig(updCfg);
+              UI.toast('ڕێکخستنەکانی بلۆک بوون پاشەکەوت کران ✓', 'success');
+              modal.close();
+              if (onSaved) onSaved();
+            } catch (err) {
+              UI.toast('هەڵە لە پاشەکەوتکردن: ' + err.message, 'error', 4200);
+            }
+          }
+        },
+      ],
+    });
+  }
+
   return { render, stop };
 })();
+
