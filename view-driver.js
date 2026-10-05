@@ -226,85 +226,6 @@ const DriverView = (() => {
   // ناسنامەی جێگیر بۆ تۆمارەکە (id دەگۆڕێت کاتێک update بە INSERT/DELETE جێبەجێ دەبێت)
   const recSig = r => `${r.record_date}|${stripEditMark(r.driver)}|${r.record_time}`;
 
-  /* ---------------- پشکنینی قفڵی خانەکان (بلۆک بوون) ----------------
-   * fieldLocks[userId][fieldKey] = { type: 'instant' } یان { type: 'timed', minutes: N }
-   * بۆ 'instant': خانەکە دوای تۆمارکردنی کردار (ئەوەی خانەکە پڕ دەکاتەوە) قفڵ دەبێت
-   * بۆ 'timed':   خانەکە دوای N خولەک لە کاتی تۆمارکردنی کردار قفڵ دەبێت
-   * ------------------------------------------------ */
-  function isFieldLocked(rec, fieldKey) {
-    if (!rec) return false;
-    const u = App.getUser();
-    if (!u) return false;
-    // بەڕێوەبەر هەرگیز قفڵ ناکرێت
-    if (Perms.isSup(u)) return false;
-
-    const cfg = Store.getPermsConfig();
-    const lockCfg = cfg.fieldLocks && cfg.fieldLocks[String(u.id)] && cfg.fieldLocks[String(u.id)][fieldKey];
-    if (!lockCfg) return false;
-
-    // ئەگەر خانەکە تۆمارنەکراوە (بەتاڵ)، قفڵ نییە
-    const fieldValue = rec[fieldKey];
-    if (!fieldValue) return false;
-
-    if (lockCfg.type === 'instant') {
-      // ڕاستەوخۆ پاش تۆمار قفڵ دەبێت
-      return true;
-    }
-
-    if (lockCfg.type === 'timed') {
-      // دوای N خولەک لە کاتی تۆمار قفڵ دەبێت
-      const mins = Number(lockCfg.minutes) || 0;
-      if (!mins) return false;
-      // کاتی تۆمارکردن = record_date + fieldValue (کات) بۆ HH:MM
-      // ئەگەر کات تۆمارکرابوو (HH:MM)، بەروار + کات بەرامبەر دەکرێت بە ئێستا
-      try {
-        const dateStr = rec.record_date || UI.todayStr();
-        // کاتی خانەکە لە فۆرماتی HH:MM
-        const timeParts = String(fieldValue).split(':');
-        if (timeParts.length < 2) return false;
-        const recAt = new Date(dateStr + 'T' + String(fieldValue).slice(0, 5) + ':00');
-        if (isNaN(recAt.getTime())) return false;
-        const lockAt = new Date(recAt.getTime() + mins * 60000);
-        return Date.now() >= lockAt.getTime();
-      } catch (_) {
-        return false;
-      }
-    }
-
-    return false;
-  }
-
-  /** وردەکاری قفڵ — ئایا قفڵ چالاکە و چ نوعی؟ */
-  function getFieldLockInfo(rec, fieldKey) {
-    if (!rec) return null;
-    const u = App.getUser();
-    if (!u || Perms.isSup(u)) return null;
-    const cfg = Store.getPermsConfig();
-    const lockCfg = cfg.fieldLocks && cfg.fieldLocks[String(u.id)] && cfg.fieldLocks[String(u.id)][fieldKey];
-    if (!lockCfg) return null;
-    const fieldValue = rec[fieldKey];
-    if (!fieldValue) return null;
-
-    if (lockCfg.type === 'instant') return { locked: true, label: '🔒 قفڵکراوە دوای تۆمار' };
-
-    if (lockCfg.type === 'timed') {
-      const mins = Number(lockCfg.minutes) || 0;
-      if (!mins) return null;
-      try {
-        const dateStr = rec.record_date || UI.todayStr();
-        const recAt = new Date(dateStr + 'T' + String(fieldValue).slice(0, 5) + ':00');
-        if (isNaN(recAt.getTime())) return null;
-        const lockAt = new Date(recAt.getTime() + mins * 60000);
-        const now = Date.now();
-        if (now >= lockAt.getTime()) return { locked: true, label: `🔒 قفڵکراوە (دوای ${mins} خولەک)` };
-        const remaining = Math.ceil((lockAt.getTime() - now) / 60000);
-        return { locked: false, label: `⏱️ دوای ${remaining} خولەک قفڵ دەبێت` };
-      } catch (_) { return null; }
-    }
-    return null;
-  }
-
-
   function addEditMarks(rec, fields) {
     if (!rec || !fields.length) return;
     const u = App.getUser()?.username || 'نەزانیرا';
@@ -469,7 +390,11 @@ const DriverView = (() => {
         </div>
         ${canEditData ? `
         <div class="active-time-edit-bar">
-          <button type="button" class="btn-edit-times btn-edit-big" id="active-edit-times-btn">✏️ دەستکاری داتا</button>
+          ${(() => {
+            const u2 = App.getUser();
+            const locked = !isSupervisor() && !Perms.canAct(u2, 'act_bypass_field_lock') && Perms.isRecordLocked(active);
+            return `<button type="button" class="btn-edit-times btn-edit-big" id="active-edit-times-btn">${locked ? '🔒' : '✏️'} دەستکاری داتا${locked ? ' (قفڵکراوە)' : ''}</button>`;
+          })()}
         </div>` : ''}
         <div class="stepper">${stepsHtml}</div>
         <div class="detail-grid">
@@ -536,7 +461,11 @@ const DriverView = (() => {
           <div class="hist-top">
             <b>${UI.esc(CONFIG.CARGO_LABELS[cargoIndex(r)] || 'بار')} — ${UI.esc(r.zone || '—')}</b>
             <div style="display:flex;align-items:center;gap:6px">
-              ${canEditData ? `<button type="button" class="btn-edit-times btn-edit-big btn-hist-edit" data-id="${r.id}" title="دەستکاریکردنی داتا و پارەی ئەم بارە">✏️ دەستکاری داتا</button>` : ''}
+              ${canEditData ? (() => {
+                const uHist = App.getUser();
+                const lockedHist = !isSupervisor() && !Perms.canAct(uHist, 'act_bypass_field_lock') && Perms.isRecordLocked(r);
+                return `<button type="button" class="btn-edit-times btn-edit-big btn-hist-edit" data-id="${r.id}" title="دەستکاریکردنی داتا و پارەی ئەم بارە">${lockedHist ? '🔒' : '✏️'} دەستکاری داتا${lockedHist ? ' (قفڵکراوە)' : ''}</button>`;
+              })() : ''}
             </div>
           </div>
           <div class="hist-meta">
@@ -1000,6 +929,17 @@ const DriverView = (() => {
     if (!rec) return;
     const u = App.getUser();
     const sup = isSupervisor();
+
+    // پشکنینی قفڵبوونی خانەکان — ئەگەر قفڵکراوە و یوسەر مۆڵەتی تێپەڕاندنی نەبوو
+    if (!sup && !Perms.canAct(u, 'act_bypass_field_lock') && Perms.isRecordLocked(rec)) {
+      const flc = (Store.getPermsConfig() || {}).fieldLock || {};
+      const reason = flc.type === 'timed'
+        ? `دوای ${UI.esc(String(flc.minutes || 0))} خولەک لە تۆمارکردنەوە`
+        : 'دوای تۆمارکردن';
+      UI.toast(`🔒 ئەم تۆمارە قفڵکراوە (${reason}) — چیتر ناتوانیت داتاکانی دەستکاری بکەیت`, 'warning', 5000);
+      return;
+    }
+
     if (!sup && rec.record_date !== UI.todayStr()) {
       UI.toast('ئاگاداری: تەنها دەستکاریکردنی داتای ئەمڕۆ ڕێگەپێدراوە', 'warning');
       return;
@@ -1065,10 +1005,7 @@ const DriverView = (() => {
 
         <div class="field-row">
           <div class="field"><label>ژمارەی سەیارە *</label><input id="f-vehicle" type="text" inputmode="numeric" placeholder="هەڵبژێرە یان بنووسە" value="${UI.esc(rec.vehicle || '')}"></div>
-          <div class="field">
-            <label>کاتی دەرچوون *${(() => { const li = getFieldLockInfo(rec, 'record_time'); return li ? ` <span style="font-size:0.72rem;opacity:0.75;font-weight:400">${li.label}</span>` : ''; })()}</label>
-            <input id="f-time" type="time" value="${rec.record_time || ''}" ${isFieldLocked(rec, 'record_time') ? 'readonly style="background:var(--bg-2);opacity:0.7;cursor:not-allowed"' : ''}>
-          </div>
+          <div class="field"><label>کاتی دەرچوون *</label><input id="f-time" type="time" value="${rec.record_time || ''}"></div>
         </div>
         <div class="field-row">
           <div class="field"><label>کێشی بار (کگم) *</label><input id="f-weight" type="text" inputmode="numeric" value="${UI.esc(rec.cargo_weight ?? '')}"></div>
@@ -1078,20 +1015,11 @@ const DriverView = (() => {
         <div class="field"><label>💰 پارەی هێنراوە (د.ع)</label><input id="f-money" type="number" min="0" step="1" inputmode="numeric" value="${Number(rec.collected_money || 0) > 0 ? UI.cleanInt(rec.collected_money) : ''}" placeholder="بەتاڵ = تۆمار نەکراوە"></div>
 
         <div class="date-range-compact" style="margin-top:10px">
-          <div class="field compact-field">
-            <label>📍 کاتی ناو زۆن${(() => { const li = getFieldLockInfo(rec, 'in_zone_time'); return li ? ` <span style="font-size:0.72rem;opacity:0.75;font-weight:400">${li.label}</span>` : ''; })()}</label>
-            <input type="time" id="f-in-zone" value="${rec.in_zone_time || ''}" ${isFieldLocked(rec, 'in_zone_time') ? 'readonly style="background:var(--bg-2);opacity:0.7;cursor:not-allowed"' : ''}>
-          </div>
-          <div class="field compact-field">
-            <label>🚏 کاتی دەرێی زۆن${(() => { const li = getFieldLockInfo(rec, 'out_zone_time'); return li ? ` <span style="font-size:0.72rem;opacity:0.75;font-weight:400">${li.label}</span>` : ''; })()}</label>
-            <input type="time" id="f-out-zone" value="${rec.out_zone_time || ''}" ${isFieldLocked(rec, 'out_zone_time') ? 'readonly style="background:var(--bg-2);opacity:0.7;cursor:not-allowed"' : ''}>
-          </div>
+          <div class="field compact-field"><label>📍 کاتی ناو زۆن</label><input type="time" id="f-in-zone" value="${rec.in_zone_time || ''}"></div>
+          <div class="field compact-field"><label>🚏 کاتی دەرێی زۆن</label><input type="time" id="f-out-zone" value="${rec.out_zone_time || ''}"></div>
         </div>
         <div class="date-range-compact">
-          <div class="field compact-field">
-            <label>🏁 کاتی گەشتنەوە${(() => { const li = getFieldLockInfo(rec, 'arrival_time'); return li ? ` <span style="font-size:0.72rem;opacity:0.75;font-weight:400">${li.label}</span>` : ''; })()}</label>
-            <input type="time" id="f-arrival" value="${rec.arrival_time || ''}" ${isFieldLocked(rec, 'arrival_time') ? 'readonly style="background:var(--bg-2);opacity:0.7;cursor:not-allowed"' : ''}>
-          </div>
+          <div class="field compact-field"><label>🏁 کاتی گەشتنەوە</label><input type="time" id="f-arrival" value="${rec.arrival_time || ''}"></div>
           <div class="field compact-field"></div>
         </div>
       </form>`;
@@ -1199,10 +1127,10 @@ const DriverView = (() => {
             }
 
             const patch = {
-              record_time: isFieldLocked(rec, 'record_time') ? (rec.record_time || null) : val('#f-time'),
-              in_zone_time: isFieldLocked(rec, 'in_zone_time') ? (rec.in_zone_time || null) : val('#f-in-zone'),
-              out_zone_time: isFieldLocked(rec, 'out_zone_time') ? (rec.out_zone_time || null) : val('#f-out-zone'),
-              arrival_time: isFieldLocked(rec, 'arrival_time') ? (rec.arrival_time || null) : val('#f-arrival'),
+              record_time: val('#f-time'),
+              in_zone_time: val('#f-in-zone'),
+              out_zone_time: val('#f-out-zone'),
+              arrival_time: val('#f-arrival'),
               driver: driverVals.join(' و '),
               distributor: distribVals.join(' و '),
               delegate: delegateVals.join(' و '),

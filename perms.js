@@ -25,7 +25,8 @@ const Perms = (() => {
     { group: 'trip', key: 'act_out_zone',  icon: '🚏', label: 'کرداری دەرچوون لە زۆن',   type: 'act' },
     { group: 'trip', key: 'act_arrival',   icon: '🏁', label: 'کرداری گەشتنەوە',        type: 'act' },
     { group: 'trip', key: 'act_money',     icon: '💰', label: 'تۆمارکردنی پارەی هێنراوە', type: 'act' },
-    { group: 'trip', key: 'act_edit_data', icon: '✏️', label: 'دەستکاریکردنی داتاکان',   type: 'act' },
+    { group: 'trip', key: 'act_edit_data',           icon: '✏️', label: 'دەستکاریکردنی داتاکان',                           type: 'act' },
+    { group: 'trip', key: 'act_bypass_field_lock',   icon: '🔓', label: 'تێپەڕاندنی قفڵی خانەکان (دەستکاری داتا دوای قفڵبوون)', type: 'act' },
 
     // ڕاپۆرت
     { group: 'reports', key: 'rep_view_all',       icon: '🗂', label: 'بینینی هەموو تۆمارەکان (نەک تەنها تۆمارەکانی خۆی)', type: 'view' },
@@ -144,5 +145,23 @@ const Perms = (() => {
   /** ئیمزای دەسەڵاتەکانی یوسەرێک — بۆ دۆزینەوەی ئەوەی ئایا دەسەڵاتەکانی گۆڕاون */
   const signatureFor = u => FEATURES.map(f => (can(u, f.type, f.key) ? 1 : 0)).join('');
 
-  return { FEATURES, GROUPS, isSup, canView, canAct, can, defaultsFor, effective, allProfessions, getDeletedProfessions, signatureFor, NEW_DEFAULT };
+  /** پشکنینی قفڵبوونی تۆمارێک بەپێی ڕێکخستنی fieldLock لە کۆنفیگەکەدا */
+  function isRecordLocked(rec) {
+    const cfg = Store.getPermsConfig();
+    const flc = cfg && cfg.fieldLock;
+    if (!flc || !flc.enabled) return false;
+    if (flc.type === 'immediate') return true;
+    if (flc.type === 'timed') {
+      const mins = Number(flc.minutes) || 0;
+      if (!mins || !rec || !rec.record_time || !rec.record_date) return false;
+      // کاتی تۆمارکردن: record_date + record_time
+      const [hh, mm] = String(rec.record_time).split(':').map(Number);
+      const savedAt = new Date(rec.record_date + 'T' + String(hh || 0).padStart(2, '0') + ':' + String(mm || 0).padStart(2, '0') + ':00');
+      const elapsedMin = (Date.now() - savedAt.getTime()) / 60000;
+      return elapsedMin >= mins;
+    }
+    return false;
+  }
+
+  return { FEATURES, GROUPS, isSup, canView, canAct, can, defaultsFor, effective, allProfessions, getDeletedProfessions, signatureFor, NEW_DEFAULT, isRecordLocked };
 })();
