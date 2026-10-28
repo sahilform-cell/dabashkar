@@ -4,6 +4,7 @@
 
 const SettingsView = (() => {
   const $ = (sel, root) => (root || document).querySelector(sel);
+  const isSupervisor = u => !!u && (u.profession === CONFIG.PROFESSION_SUPERVISOR || u.profession === 'بەڕێوبەر' || u.profession === 'بەریوبەر');
 
   let container = null;
 
@@ -85,6 +86,30 @@ const SettingsView = (() => {
             <span class="set-row-hint">لایتێک لەچوارچێوەی کارت و ویندۆیەکاندا دەسوڕێتەوە.</span>
           </span>
         </label>
+        <p class="hint" style="margin:14px 0 6px">🎬 لۆدینگی دووگمەکانی کارەکان — لە شوێنی چاوەڕوانی:</p>
+        <div class="seg" id="btnanim-seg">
+          <button type="button" data-mode="truck" class="${(s.btnAnimMode || 'truck') === 'truck' ? 'active' : ''}">🚚 سەیارە</button>
+          <button type="button" data-mode="scene" class="${s.btnAnimMode === 'scene' ? 'active' : ''}">🎯 تایبەت بە هەر دووگمە</button>
+          <button type="button" data-mode="off" class="${s.btnAnimMode === 'off' ? 'active' : ''}">ناچالاک</button>
+        </div>
+        <label class="set-row" for="set-lastweek" style="margin-top:14px;border-bottom:none">
+          <input type="checkbox" id="set-lastweek" ${s.lastWeekFill !== false ? 'checked' : ''}>
+          <span class="set-row-txt">
+            <span class="set-row-title">🗓 حەفتەی ڕابردوو</span>
+            <span class="set-row-hint">لە فۆڕمی تۆمارکردنی دەرچووندا خانەی سایەق، دابەشکار، مەندوب، زۆن و ژمارەی سەیارە بە خۆکاری پڕ دەکرێنەوە لە داتای هەمان ڕۆژی حەفتەی ڕابردوو — دەستدان لە هەر خانەیەکی پڕکراوە بەتاڵی دەکاتەوە.</span>
+          </span>
+        </label>
+        <div id="btnanim-preview" style="margin-top:10px">
+          <p class="hint" style="margin:0 0 8px">پێشبینین — سەیری هەر دووگمەیەک بکە:</p>
+          <div class="anim-preview-grid">
+            <button type="button" class="btn btn-primary anim-try" data-anim="truck">${UI.animLayerHtml('truck')}<span class="btn-anim-label">🚚 سەیارە</span></button>
+            <button type="button" class="btn btn-primary anim-try" data-anim="exit">${UI.animLayerHtml('exit')}<span class="btn-anim-label">🚚 دەرچوون</span></button>
+            <button type="button" class="btn btn-primary anim-try" data-anim="in_zone">${UI.animLayerHtml('in_zone')}<span class="btn-anim-label">📍 ناو زۆن</span></button>
+            <button type="button" class="btn btn-primary anim-try" data-anim="out_zone">${UI.animLayerHtml('out_zone')}<span class="btn-anim-label">🚏 دەرێی زۆن</span></button>
+            <button type="button" class="btn btn-primary anim-try" data-anim="arrival">${UI.animLayerHtml('arrival')}<span class="btn-anim-label">🏁 گەشتنەوە</span></button>
+            <button type="button" class="btn btn-primary anim-try" data-anim="money">${UI.animLayerHtml('money')}<span class="btn-anim-label">💰 پارەی هێنراوە</span></button>
+          </div>
+        </div>
         <div id="glow-extra" ${s.glow ? '' : 'hidden'} style="margin-top:8px">
           <div class="field"><label>🎨 ڕەنگی گڵۆپ</label><input type="color" id="glow-color" value="${s.glowColor || '#10b981'}"></div>
           <div class="field"><label>📏 درێژی گڵۆپ — <b id="glow-len-val">${Math.min(60, Math.max(5, Number(s.glowLen) || 20))}%</b></label><input type="range" id="glow-len" min="5" max="60" step="5" value="${Math.min(60, Math.max(5, Number(s.glowLen) || 20))}"></div>
@@ -117,6 +142,13 @@ const SettingsView = (() => {
             </span>
           </label>
           <label class="set-row">
+            <input type="checkbox" id="set-watch-dup" ${s.watchDuplicates !== false ? 'checked' : ''}>
+            <span class="set-row-txt">
+              <span class="set-row-title">👁 چاودێرم بە</span>
+              <span class="set-row-hint">ئەگەر لە هەمان بەروار و هەمان کاتدا ناوی سایەق، یان ناوی دابەشکار، یان ژمارەی سەیارە لە گەشتێکی تردا دووبارە ببێتەوە (تەنانەت ئەگەر کاتی گەشتنەوەشی تۆمارکرابێت)، تەنها ئەو خانەیەی دووبارە بووەتەوە بە ڕەنگی سوور دەردەکەوێت.</span>
+            </span>
+          </label>
+          <label class="set-row">
             <input type="checkbox" id="set-show-hints" ${s.showHints !== false ? 'checked' : ''}>
             <span class="set-row-txt">
               <span class="set-row-title">پشاندانی تێبینی و ڕوونکردنەوەکان</span>
@@ -125,27 +157,6 @@ const SettingsView = (() => {
           </label>
         </div>
       </section>
-
-      ${Perms.canView(u, 'set_keypad') ? `
-      <section class="card">
-        <h3 class="section-title"><span class="sec-icon">${UI.icon('keyboard')}</span> کیبۆردی تایبەتی سیستەم</h3>
-        <div class="set-rows">
-          <label class="set-row">
-            <input type="checkbox" id="set-custom-keypad-text" ${s.customKeypadText ? 'checked' : ''}>
-            <span class="set-row-txt">
-              <span class="set-row-title">کیبۆردی پیتەکان — بۆ خانە نووسینەکان</span>
-              <span class="set-row-hint">هەموو پیته کوردییەکان پیشان دەدات بۆ خانەکانی ناو وەک سایەق، دابەشکار، مەندوب و زۆن.</span>
-            </span>
-          </label>
-          <label class="set-row">
-            <input type="checkbox" id="set-custom-keypad-num" ${s.customKeypadNum ? 'checked' : ''}>
-            <span class="set-row-txt">
-              <span class="set-row-title">کیبۆردی ژمارەکان — بۆ خانە ژمارەییەکان</span>
-              <span class="set-row-hint">ژمارە و ئامرازی (+) و (−) پیشان دەدات بۆ خانەکانی ژمارەی سەیارە، وەسڵ، کێشی بار و پارچەکان — چونکە کیبۆردی ئائیۆس ئەم دوو ئامرازە پیشان نادات.</span>
-            </span>
-          </label>
-        </div>
-      </section>` : ''}
 
       <section class="card">
         <h3 class="section-title"><span class="sec-icon">${UI.icon('columns')}</span> پیشاندان/شاردنەوەی ستوونەکان و کۆیەکان</h3>
@@ -377,6 +388,31 @@ const SettingsView = (() => {
         </div>
       </section>` : ''}
 
+      ${(typeof Shortcuts !== 'undefined' && Shortcuts.isDesktop()) ? `
+      <section class="card shortcuts-card">
+        <h3 class="section-title"><span class="sec-icon">${UI.icon('keyboard')}</span> شۆڕت کەتەکان</h3>
+        <p class="hint">لەم بەشەدا دەتوانیت بۆ هەر کردارێکی سیستەم دووگمەیەکی کیبۆرد دابنێیت (تایبەت بە کۆمپیوتەر و دیسکتۆپ).</p>
+
+        <label class="set-row" for="set-shortcuts-enabled" style="margin-top:14px">
+          <input type="checkbox" id="set-shortcuts-enabled" ${s.shortcutsEnabled ? 'checked' : ''}>
+          <span class="set-row-txt">
+            <span class="set-row-title">چالاککردنی شۆڕتکەتەکانی کیبۆرد</span>
+            <span class="set-row-hint">داگرتنی کلیلەکان لە تەواوی سیستەمدا کردارە پەیوەندیدارەکان جێبەجێ دەکات.</span>
+          </span>
+        </label>
+
+        <div id="shortcuts-content-wrap" class="shortcuts-content-wrap" style="${s.shortcutsEnabled ? '' : 'display:none'}">
+          <div class="shortcuts-actions-bar" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 8px">
+            <span class="muted" style="font-size:0.85rem">لیستی کردارەکان و دووگمەکانیان:</span>
+            <button type="button" class="btn btn-sm btn-ghost" id="btn-reset-shortcuts">⟲ گەڕانەوە بۆ بنەڕەت</button>
+          </div>
+
+          <div class="shortcuts-container" id="shortcuts-container">
+            ${renderShortcutsListHtml(u)}
+          </div>
+        </div>
+      </section>` : ''}
+
       <section class="card">
         <button class="btn btn-danger btn-block" id="settings-logout-btn" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
@@ -402,11 +438,13 @@ const SettingsView = (() => {
       if (!file) return;
       UI.avatarEditor(file, {
         onSave: async dataUrl => {
-          const updated = await API.Lists.updateUser(App.getUser().id, { avatar_url: dataUrl });
-          Store.updateSession({ avatar_url: updated ? updated.avatar_url : dataUrl });
+          const res = await API.uploadAvatar(App.getUser().id, dataUrl);
+          const newUrl = (res && res.avatar_url) ? res.avatar_url : dataUrl;
+          Store.updateSession({ avatar_url: newUrl });
           $('#profile-avatar', container).innerHTML = UI.avatarHtml(App.getUser(), 76);
           App.renderHeader();
           UI.toast('وێنەی پڕۆفایل نوێ کرایەوە ✓', 'success');
+          if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
         },
       });
     });
@@ -470,6 +508,30 @@ const SettingsView = (() => {
       if (v) v.textContent = e.target.value;
     });
 
+    /* — لۆدینگی دووگمەکانی کارەکان (سەیارە / تایبەت / ناچالاک) + پێشبینین — */
+    el.querySelectorAll('#btnanim-seg button').forEach(sb => {
+      sb.addEventListener('click', () => {
+        const mode = sb.dataset.mode || 'truck';
+        Store.saveSettings({ btnAnimMode: mode });
+        el.querySelectorAll('#btnanim-seg button').forEach(b => b.classList.toggle('active', b === sb));
+        UI.toast(mode === 'truck' ? 'سەیارەکە بۆ هەموو دووگمەکان چالاک کرا 🚚' : (mode === 'scene' ? 'ئەنیمەیشنی تایبەت بە هەر دووگمە چالاک کرا ✓' : 'لۆدینگی ئاسایی چالاک کرا'), 'info');
+      });
+    });
+    el.querySelectorAll('#btnanim-preview .anim-try').forEach(pb => {
+      pb.addEventListener('click', () => {
+        const t = pb.dataset.anim;
+        if (!t) return;
+        UI.btnScene(pb, t, true);
+        setTimeout(() => UI.btnScene(pb, t, false), 2000);
+      });
+    });
+
+    /* — حەفتەی ڕابردوو: پڕکردنەوەی خۆکاری فۆڕمی دەرچوون — */
+    $('#set-lastweek', el)?.addEventListener('change', e => {
+      Store.saveSettings({ lastWeekFill: e.target.checked });
+      UI.toast(e.target.checked ? 'پڕکردنەوەی حەفتەی ڕابردوو چالاک کرا ✓' : 'پڕکردنەوەی حەفتەی ڕابردوو ناچالاک کرا', 'info');
+    });
+
     /* — شێوازی پیشاندانی خشتە — */
     $('#set-row-click-fullscreen', el)?.addEventListener('change', e => {
       Store.saveSettings({ rowClickFullscreen: e.target.checked });
@@ -486,19 +548,14 @@ const SettingsView = (() => {
       UI.toast(e.target.checked ? 'پشاندانی ناونیشانەکان لەناو خانەکان چالاک کرا ✓' : 'پشاندانی ناونیشانەکان لەناو خانەکان ناچالاک کرا', 'info');
     });
 
+    $('#set-watch-dup', el)?.addEventListener('change', e => {
+      Store.saveSettings({ watchDuplicates: e.target.checked });
+      UI.toast(e.target.checked ? 'چاودێرم بە چالاک کرا ✓' : 'چاودێرم بە ناچالاک کرا', 'info');
+    });
+
     $('#set-show-hints', el)?.addEventListener('change', e => {
       Store.saveSettings({ showHints: e.target.checked });
       UI.toast(e.target.checked ? 'تێبینی و ڕوونکردنەوەکان پیشان دەدرێن ✓' : 'تێبینی و ڕوونکردنەوەکان شاردراونەوە', 'info');
-    });
-
-    $('#set-custom-keypad-text', el)?.addEventListener('change', e => {
-      Store.saveSettings({ customKeypadText: e.target.checked });
-      UI.toast(e.target.checked ? 'کیبۆردی پیتەکان چالاک کرا ✓' : 'کیبۆردی پیتەکان ناچالاک کرا', 'info');
-    });
-
-    $('#set-custom-keypad-num', el)?.addEventListener('change', e => {
-      Store.saveSettings({ customKeypadNum: e.target.checked });
-      UI.toast(e.target.checked ? 'کیبۆردی ژمارەکان چالاک کرا ✓' : 'کیبۆردی ژمارەکان ناچالاک کرا', 'info');
     });
 
     /* — پشاندان/شاردنەوەی ستوونەکان و کۆیەکان (دانە دانە) — */
@@ -754,7 +811,198 @@ const SettingsView = (() => {
       }
     });
 
+    /* — شۆڕت کەتەکان (کیبۆرد بۆ دیسکتۆپ) — */
+    $('#set-shortcuts-enabled', el)?.addEventListener('change', e => {
+      const isChecked = e.target.checked;
+      Store.saveSettings({ shortcutsEnabled: isChecked });
+      const wrap = $('#shortcuts-content-wrap', el);
+      if (wrap) {
+        wrap.style.display = isChecked ? '' : 'none';
+      }
+      UI.toast(isChecked ? 'شۆڕتکەتەکانی کیبۆرد چالاککران ✓' : 'شۆڕتکەتەکانی کیبۆرد ناچالاککران', 'info');
+    });
+
+    $('#btn-reset-shortcuts', el)?.addEventListener('click', async () => {
+      const ok = await UI.confirmDialog('ئایا دڵنیایت لە گەڕانەوەی سەرجەم شۆڕتکەتەکان بۆ دۆخی بنەڕەتی سیستەم؟', {
+        danger: true,
+        okLabel: 'بەڵێ، بگەڕێوە',
+        cancelLabel: 'پەشیمانبوونەوە'
+      });
+      if (ok) {
+        if (typeof Shortcuts !== 'undefined') Shortcuts.resetDefaults();
+        UI.toast('شۆڕتکەتەکان گەڕێنرانەوە بۆ بنەڕەت ✓', 'success');
+        render(container);
+      }
+    });
+
+    el.querySelectorAll('.btn-shortcut-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const actionId = btn.dataset.action;
+        if (actionId) openShortcutRecordModal(actionId);
+      });
+    });
+
+    el.querySelectorAll('.btn-shortcut-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const actionId = btn.dataset.action;
+        const act = typeof Shortcuts !== 'undefined' ? Shortcuts.getAction(actionId) : null;
+        if (typeof Shortcuts !== 'undefined') Shortcuts.setShortcut(actionId, '');
+        UI.toast(`دووگمەی شۆڕتکەت بۆ «${act ? act.label : actionId}» سڕایەوە`, 'info');
+        render(container);
+      });
+    });
+
     updateBackupStatusUI();
+  }
+
+  /* ---------------- هاریکارەکانی شۆڕت کەت ---------------- */
+
+  function renderShortcutsListHtml(u) {
+    if (typeof Shortcuts === 'undefined') return '';
+    const categories = Shortcuts.getCategories();
+    const actions = Shortcuts.getActions();
+    const shortcuts = Shortcuts.getShortcuts();
+    const sup = isSupervisor(u);
+
+    return Object.entries(categories).map(([catKey, catTitle]) => {
+      const catActions = actions.filter(act => {
+        if (act.category !== catKey) return false;
+        if (act.permission && !Perms.canView(u, act.permission) && !sup) return false;
+        if (act.id === 'tab_professions' && !sup) return false;
+        if (act.id === 'act_admin_new_record' && !sup && !Perms.canView(u, 'tab_admin')) return false;
+        if (act.id === 'act_manage_zones' && !sup && !Perms.canView(u, 'tab_admin')) return false;
+        if (act.id === 'act_manage_users' && !sup && !Perms.canView(u, 'tab_admin')) return false;
+        if (act.id === 'act_manage_vehicles' && !sup && !Perms.canView(u, 'tab_admin')) return false;
+        if (act.id === 'act_field_lock' && !sup && !Perms.canView(u, 'tab_admin')) return false;
+        return true;
+      });
+
+      if (!catActions.length) return '';
+
+      return `
+        <div class="shortcut-category-group">
+          <div class="shortcut-category-title"><span class="cat-pill">${UI.esc(catTitle)}</span></div>
+          <div class="shortcuts-list">
+            ${catActions.map(act => {
+              const assignedKey = shortcuts[act.id] || '';
+              return `
+                <div class="shortcut-item" data-action="${act.id}">
+                  <div class="shortcut-item-info">
+                    <span class="shortcut-item-icon">${UI.icon(act.icon, 16)}</span>
+                    <span class="shortcut-item-name">${UI.esc(act.label)}</span>
+                  </div>
+                  <div class="shortcut-item-ctrl">
+                    <div class="shortcut-badge-wrap">
+                      ${assignedKey
+                        ? `<kbd class="shortcut-kbd" title="دووگمەی دیاریکراو">${UI.esc(assignedKey)}</kbd>`
+                        : `<span class="shortcut-kbd-empty">دیاری نەکراوە</span>`}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-ghost btn-shortcut-edit" data-action="${act.id}" title="گۆڕینی دووگمە">
+                      ${UI.icon('edit', 14)} <span>گۆڕین</span>
+                    </button>
+                    ${assignedKey ? `
+                    <button type="button" class="btn btn-sm btn-ghost btn-shortcut-del" data-action="${act.id}" title="سڕینەوەی ئەم دووگمەیە">✕</button>
+                    ` : ''}
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function openShortcutRecordModal(actionId) {
+    if (typeof Shortcuts === 'undefined') return;
+    const act = Shortcuts.getAction(actionId);
+    if (!act) return;
+    const currentKey = Shortcuts.getShortcut(actionId);
+    let capturedKey = currentKey || '';
+
+    const body = document.createElement('div');
+    body.className = 'shortcut-modal-body';
+    body.innerHTML = `
+      <div class="shortcut-modal-head">
+        <div class="shortcut-modal-icon">${UI.icon(act.icon, 22)}</div>
+        <div>
+          <h4 style="margin:0 0 3px;font-size:1rem">${UI.esc(act.label)}</h4>
+          <span class="muted" style="font-size:0.82rem">کلیک لەسەر چوارگۆشەکە بکە و دووگمەیەک لە کیبۆردەکەت دابگرە</span>
+        </div>
+      </div>
+
+      <div class="shortcut-capture-card" id="shortcut-capture-card" tabindex="0">
+        <div class="shortcut-capture-display" id="shortcut-capture-val">
+          ${capturedKey
+            ? `<kbd class="shortcut-kbd-big">${UI.esc(capturedKey)}</kbd>`
+            : '<span class="capture-placeholder">⌨️ دووگمەیەک لە کیبۆرد دابگرە...</span>'}
+        </div>
+        <p class="hint" style="margin:10px 0 0;text-align:center">
+          دەتوانیت هەر دووگمەیەک (وەک <b>F1-F12</b>، <b>Space</b>، <b>Enter</b>، <b>پیتەکان</b>) یان بە کۆمبۆ (<b>Alt + N</b>، <b>Ctrl + K</b>) دابگریت
+        </p>
+      </div>
+
+      <div id="shortcut-conflict-alert" class="shortcut-conflict-alert" style="display:none"></div>
+    `;
+
+    const captureCard = $('#shortcut-capture-card', body);
+    const captureVal = $('#shortcut-capture-val', body);
+    const conflictAlert = $('#shortcut-conflict-alert', body);
+
+    const checkConflict = (combo) => {
+      const conflictId = Shortcuts.findActionByCombo(combo);
+      if (conflictId && conflictId !== actionId) {
+        const conflictAct = Shortcuts.getAction(conflictId);
+        conflictAlert.style.display = 'block';
+        conflictAlert.innerHTML = `⚠️ ئەم دووگمەیە پێشتر بۆ «<b>${UI.esc(conflictAct ? conflictAct.label : conflictId)}</b>» دانراوە. ئەگەر پاشەکەوتی بکەیت، بۆ ئەم کردارە نوێ دەکرێتەوە.`;
+      } else {
+        conflictAlert.style.display = 'none';
+      }
+    };
+
+    const handleKeyCapture = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const combo = Shortcuts.normalizeEvent(e);
+      if (!combo) return;
+      capturedKey = combo;
+      captureVal.innerHTML = `<kbd class="shortcut-kbd-big">${UI.esc(combo)}</kbd>`;
+      checkConflict(combo);
+    };
+
+    captureCard.addEventListener('keydown', handleKeyCapture);
+    captureCard.addEventListener('click', () => captureCard.focus());
+
+    const { close } = UI.openModal({
+      title: '⌨️ دیاریکردنی دووگمەی شۆڕتکەت',
+      body,
+      actions: [
+        {
+          label: 'سڕینەوەی دووگمە',
+          className: 'btn-ghost',
+          onClick: () => {
+            Shortcuts.setShortcut(actionId, '');
+            UI.toast('دووگمەی شۆڕتکەتەکە سڕایەوە', 'info');
+            close();
+            render(container);
+          }
+        },
+        {
+          label: 'پاشەکەوتکردن',
+          className: 'btn-primary',
+          onClick: () => {
+            if (!capturedKey) {
+              UI.toast('تکایە دووگمەیەک لە کیبۆرد دابگرە', 'warning');
+              return;
+            }
+            Shortcuts.setShortcut(actionId, capturedKey);
+            UI.toast(`دووگمەی «${capturedKey}» بۆ «${act.label}» دیاریکرا ✓`, 'success');
+            close();
+            render(container);
+          }
+        }
+      ]
+    });
+
+    setTimeout(() => captureCard.focus(), 80);
   }
 
   /* ---------------- گۆڕینی تێپەڕەوشە ---------------- */
@@ -773,6 +1021,14 @@ const SettingsView = (() => {
     const subBtn = $('#pass-form button[type="submit"]', container);
     UI.btnLoading(subBtn, true, 'نوێ دەکرێتەوە...');
     try {
+      // مۆدی دەروازە — پشکنینی تێپەڕەوشەی ئێستا لە سێرڤەر دەکرێت
+      if (CONFIG.GATEWAY_URL) {
+        await API.changeOwnPin(cur, nw);
+        UI.toast('تێپەڕەوشە بە سەرکەوتوویی گۆڕدرا ✓', 'success');
+        $('#pass-form', container).reset();
+        return;
+      }
+
       const users = await API.Lists.users();
       const me = users.find(x => x.id === App.getUser().id);
       if (!me) { UI.toast('بەکارهێنەر نەدۆزرایەوە', 'error'); return; }
@@ -782,7 +1038,7 @@ const SettingsView = (() => {
       UI.toast('تێپەڕەوشە بە سەرکەوتوویی گۆڕدرا ✓', 'success');
       $('#pass-form', container).reset();
     } catch (err) {
-      UI.toast('هەڵە لە گۆڕینی تێپەڕەوشە: ' + err.message, 'error', 4200);
+      UI.toast(err.code === 'WRONG_PIN' ? 'تێپەڕەوشەی ئێستا هەڵەیە' : ('هەڵە لە گۆڕینی تێپەڕەوشە: ' + err.message), 'error', 4200);
     } finally {
       UI.btnLoading(subBtn, false);
     }
@@ -869,6 +1125,8 @@ const SettingsView = (() => {
   }
 
   async function buildBackupWorkbook(dayStr) {
+    // کتێبخانەی ئێکسڵ خاوەنکار بار دەکرێت — تەنها کاتی باک ئەپ
+    await UI.ensureXlsx();
     const records = (await API.Records.list({ 'record_date': `eq.${dayStr}` })) || [];
     const rows = [
       [`سیستەمی گەیاندن — باک ئەپی ڕۆژی ${dayStr}`],

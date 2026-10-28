@@ -52,7 +52,7 @@ const UI = (() => {
     const str = toLatinDigits(String(v)).trim();
     // ئەگەر دەقی کۆکردنەوە/کەمکردنەوە بێت (10+20+30) کۆی گشتی هەڵبسەنگێنە
     if (hasOperator(str)) {
-      let s = str.replace(/[\s,]/g, '').replace(/٫/g, '.');
+      let s = str.replace(/[\s,،]/g, '').replace(/٫/g, '.');
       s = s.replace(/^\+/, '');
       if (s.startsWith('-')) s = '0' + s;
       if (/^\d+(\.\d+)?([+\-*/]\d+(\.\d+)?)*$/.test(s)) {
@@ -60,7 +60,9 @@ const UI = (() => {
         if (Number.isFinite(r)) return Math.round(r);
       }
     }
-    const withoutDecimals = str.split(/[\.,٫]/)[0];
+    // لابردنی فاریزەی هەزارەکان (commas) پێش جیاکردنەوەی پۆینت
+    const withoutCommas = str.replace(/[,،\s]/g, '');
+    const withoutDecimals = withoutCommas.split(/[\.٫]/)[0];
     const cleaned = withoutDecimals.replace(/[^\d-]/g, '');
     if (cleaned === '' || cleaned === '-') return 0;
     const n = parseInt(cleaned, 10);
@@ -68,15 +70,140 @@ const UI = (() => {
   }
 
   function fmtNum(v) {
-    if (v === null || v === undefined || v === '') return '—';
+    if (v === null || v === undefined || v === '' || v === '—') return '—';
     const n = cleanInt(v);
     return n.toLocaleString('en-US');
   }
 
   function fmtMoney(v) {
-    if (v === null || v === undefined || v === '') return '—';
+    if (v === null || v === undefined || v === '' || v === '—') return '—';
     const n = cleanInt(v);
     return n.toLocaleString('en-US') + ' د.ع';
+  }
+
+  /**
+   * فۆرماتکردنی دەقی ژمارەیی بە فاریزەی هەزارەکان (1,000,000)
+   * @param {string|number} val
+   * @param {boolean} [allowOperators=false]
+   */
+  function formatThousands(val, allowOperators = false) {
+    if (val === null || val === undefined || val === '') return '';
+    let s = toLatinDigits(String(val)).trim();
+    if (allowOperators) {
+      s = s.replace(/[^\d+\-*/]/g, '');
+    } else {
+      s = s.replace(/[^\d]/g, '');
+    }
+    s = s.replace(/[,،]/g, '');
+    return s.replace(/\d+/g, m => m.replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+  }
+
+  /**
+   * ڕێکخستنی فاریزەی هەزارەکان لەکاتی نووسین لە خانە ژمارەییەکاندا
+   * بۆ نموونە: کێشی بار، ژمارەی پارچەکان، ژمارەی وەسڵ، پارەی هێنراوە
+   * لە کاتی نووسینی ژمارەدا لە دوای هەر سێ ژمارەیەک فاریزەیەک دروست دەبێت
+   * لەگەڵ پاراستنی شوێنی کۆرسەر، Backspace، Delete، و دەربڕینی ماتماتیکی (+ و -)
+   * @param {HTMLInputElement} inp
+   * @param {Object} [opts]
+   * @param {boolean} [opts.allowOperators=false]
+   */
+  function wireThousands(inp, opts = {}) {
+    if (!inp) return;
+    const allowOperators = !!opts.allowOperators;
+    inp.classList.add('num-input');
+
+    const handleInput = () => {
+      const orig = inp.value;
+      if (!orig) return;
+      const selEnd = inp.selectionEnd ?? orig.length;
+
+      // ژماردنی کارەکتەرە نا-فاریزەییەکان پێش کۆرسەر
+      let nonCommasBefore = 0;
+      for (let i = 0; i < selEnd; i++) {
+        if (orig[i] !== ',' && orig[i] !== '،') {
+          nonCommasBefore++;
+        }
+      }
+
+      const formatted = formatThousands(orig, allowOperators);
+      if (formatted === orig) return;
+
+      // دۆزینەوەی شوێنی نوێی کۆرسەر بەپێی کارەکتەرە نا-فاریزەییەکان
+      let newCursor = 0;
+      let count = 0;
+      while (newCursor < formatted.length && count < nonCommasBefore) {
+        if (formatted[newCursor] !== ',') {
+          count++;
+        }
+        newCursor++;
+      }
+
+      inp.value = formatted;
+      try {
+        inp.setSelectionRange(newCursor, newCursor);
+      } catch (_) {}
+    };
+
+    inp.addEventListener('input', handleInput);
+
+    // لە کاتی Backspace یان Delete لەسەر فاریزە، ژمارەکەی تەنیشت فاریزەکە بسڕێتەوە
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && inp.selectionStart === inp.selectionEnd) {
+        const pos = inp.selectionStart;
+        if (pos > 0 && inp.value[pos - 1] === ',') {
+          e.preventDefault();
+          const before = inp.value.slice(0, pos - 2);
+          const after = inp.value.slice(pos);
+          inp.value = before + after;
+          const newPos = Math.max(0, pos - 2);
+          try {
+            inp.setSelectionRange(newPos, newPos);
+          } catch (_) {}
+          handleInput();
+        }
+      } else if (e.key === 'Delete' && inp.selectionStart === inp.selectionEnd) {
+        const pos = inp.selectionStart;
+        if (pos < inp.value.length && inp.value[pos] === ',') {
+          e.preventDefault();
+          const before = inp.value.slice(0, pos);
+          const after = inp.value.slice(pos + 2);
+          inp.value = before + after;
+          try {
+            inp.setSelectionRange(pos, pos);
+          } catch (_) {}
+          handleInput();
+        }
+      }
+    });
+
+    if (allowOperators) {
+      inp.addEventListener('blur', () => {
+        const raw = inp.value.trim();
+        if (hasOperator(raw)) {
+          inp.dataset.raw = raw;
+          inp.value = fmtNum(cleanInt(raw));
+        } else {
+          delete inp.dataset.raw;
+        }
+      });
+      inp.addEventListener('focus', () => {
+        if (inp.dataset.raw) inp.value = inp.dataset.raw;
+      });
+      if (inp.value && hasOperator(inp.value)) {
+        inp.dataset.raw = inp.value;
+        inp.value = fmtNum(cleanInt(inp.value));
+      }
+    }
+
+    // ئەگەر خانەکە پێشوەخت بەهای تێدابوو فۆرماتی بکە
+    if (inp.value && !hasOperator(inp.value)) {
+      inp.value = formatThousands(inp.value, allowOperators);
+    }
+
+    return {
+      format: val => formatThousands(val, allowOperators),
+      cleanVal: () => cleanInt(inp.dataset.raw || inp.value),
+    };
   }
 
   /* ---------------- بەروار و کات (کاتی ناوخۆیی) ---------------- */
@@ -152,7 +279,7 @@ const UI = (() => {
   }
 
   /* ---------------- دوگمەی گەڕانەوەی مووبایل ----------------
-   *  هەر ویندۆ/ئۆڤەرلەێک (مۆدال، کیبۆردی تایبەت، نۆتیفیکەیشن، وێنەی گەورە، تابی ناوەکی...)
+   *  هەر ویندۆ/ئۆڤەرلەێک (مۆدال، نۆتیفیکەیشن، وێنەی گەورە، تابی ناوەکی...)
    *  یەک State لە مێژووی براوسەردا دەگرێت — بۆ ئەوەی دوگمەی گەڕانەوەی مووبایل
    *  ئەو چینە دابخات نەک ئەپەکە دەربکات.
    *
@@ -397,6 +524,100 @@ const UI = (() => {
       return `<img class="avatar" src="${user.avatar_url}" alt="${esc(user.username)}" style="width:${size}px;height:${size}px"${attrs}>`;
     }
     return `<div class="avatar avatar-fallback" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.42)}px"${attrs}>${initial}</div>`;
+  }
+
+  // وێنەی ئاڤاتاری شێواو (بەستەری هەڵە یان نەگەیشتوو) — لە جیاتی نیشانەی وێنەی شێواو،
+  // پیتە یەکەمی ناوی یوسەرەکە پیشان دەدرێت (هەمان شێوەی فۆڵباکی بنەڕەتی)
+  document.addEventListener('error', e => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.classList.contains('avatar')) return;
+    const fallback = document.createElement('div');
+    fallback.className = 'avatar avatar-fallback';
+    fallback.setAttribute('style', img.getAttribute('style') || '');
+    const size = parseInt(img.style.width, 10) || 44;
+    fallback.style.fontSize = Math.round(size * 0.42) + 'px';
+    ['data-uid', 'data-uname', 'data-uprof'].forEach(a => {
+      const v = img.getAttribute(a);
+      if (v !== null) fallback.setAttribute(a, v);
+    });
+    fallback.textContent = (img.getAttribute('alt') || '؟').trim().charAt(0);
+    img.replaceWith(fallback);
+  }, true);
+
+  /* ---------------- ئەنیمەیشنی دووگمەکانی کردار ----------------
+   * بۆ هەر کردارێکی فۆڕمی کارەکان ئەنیمەیشنێکی تایبەت — لە شوێنی لۆدینگی ئاسایی
+   * پیشان دەدرێت و دەقە کوردییەکەی دووگمەکە بە شێوەیەکی سروشتی دەمێنێتەوە. */
+
+  const ANIM_LAYERS = {
+    /* سەیارە — لۆدینگی هەموو دووگمەکان: لایەک دەچێتەوە، دەڕوات و لە کۆتاییدا لایەکی تر دەردەچێت */
+    truck: '<span class="a-road"><i></i><i></i><i></i></span><span class="a-lorry"><i class="t-back"></i><i class="t-front"></i><i class="t-window"></i><i class="t-beam"></i><i class="t-wheel w1"></i><i class="t-wheel w2"></i></span><i class="sp s1"></i><i class="sp s2"></i><i class="sp s3"></i>',
+    /* دەرچوون — سەیارە بە درێژایی دووگمەکە لەگەڵ ڕووناکی و ڕێگا */
+    exit: '<span class="a-road"><i></i><i></i><i></i></span><span class="a-truck"><i class="t-back"></i><i class="t-front"></i><i class="t-window"></i><i class="t-beam"></i><i class="t-wheel w1"></i><i class="t-wheel w2"></i></span>',
+    /* ناو زۆن — پین دادەبەزێت و ڕادار بەربڵاو دەبێت */
+    in_zone: '<span class="a-pin"><i class="p-body"></i><i class="p-hole"></i></span><span class="a-radar"></span>',
+    /* دەرێی زۆن — خێرایی دەرچوون بە هێڵی با و تیری ئاراستە */
+    out_zone: '<i class="st s1"></i><i class="st s2"></i><i class="st s3"></i><i class="a-chev"></i>',
+    /* گەشتنەوە — ئاڵای شطرنجی لەڕێگەوە دەڕوات */
+    arrival: '<span class="a-flag"><i class="f-pole"></i><i class="f-cloth"></i></span>',
+    /* پارە — دراو دادەبەزێتە ناو خانەکە */
+    money: '<i class="coin c1"></i><i class="coin c2"></i><i class="coin c3"></i><i class="coin c4"></i><i class="slot"></i>',
+  };
+
+  function animLayerHtml(type) {
+    return ANIM_LAYERS[type] ? `<span class="anim-layer a-${type}" aria-hidden="true">${ANIM_LAYERS[type]}</span>` : '';
+  }
+
+  /** چالاک/ناچالاککردنی ئەنیمەیشن لەسەر دووگمە — دەقی ئەسلی دووگمەکە پاشەکەوت و بەرز دەکرێتەوە.
+   * بۆ شێوازی سەیارە: لە کاتی ناچالاککردندا سەیارەکە بە خێرایی لە لایەکی تر دەردەچێت پاشان دووگمەکە دەگەڕێتەوە. */
+  function btnScene(btn, type, on) {
+    if (!btn) return;
+    const finish = () => {
+      btn.disabled = false;
+      btn.classList.remove('anim-on', 'anim-done');
+      if (btn.dataset.sceneHtml) {
+        btn.innerHTML = btn.dataset.sceneHtml;
+        delete btn.dataset.sceneHtml;
+      }
+    };
+    if (on) {
+      if (!btn.dataset.sceneHtml) btn.dataset.sceneHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.classList.remove('anim-done');
+      btn.classList.add('anim-on');
+      btn.innerHTML = `${animLayerHtml(type)}<span class="btn-anim-label">${btn.dataset.sceneHtml}</span>`;
+    } else if (type === 'truck' && btn.classList.contains('anim-on')) {
+      // کۆتایی لۆدینگ — سەیارەکە بە خێرایی لە لایەکی تر دەردەچێت
+      btn.classList.add('anim-done');
+      setTimeout(finish, 620);
+    } else finish();
+  }
+
+  /** ئەگەر ئەنیمەیشن لە ڕێکخستنەکان چالاک بێت scene پیشان دەدرێت، ئەگینا لۆدینگی ئاسایی.
+   * شێوازەکان: 'truck' = سەیارە بۆ هەموو دووگمەکان | 'scene' = ئەنیمەیشنی تایبەت بە هەر دووگمە | 'off' = لۆدینگی ئاسایی */
+  function btnBusy(btn, type, on, text) {
+    let mode = 'truck';
+    try { mode = Store.getSettings().btnAnimMode || 'truck'; } catch (_) {}
+    if (mode === 'truck' && type) btnScene(btn, 'truck', on);
+    else if (mode === 'scene' && type && ANIM_LAYERS[type]) btnScene(btn, type, on);
+    else btnLoading(btn, on, text || 'چاوەڕوان بە...');
+  }
+
+  /* ---------------- بارکردنی خاوەنکاری کتێبخانەی ئێکسڵ ----------------
+   * xlsx.full.min.js (~٨٨٠KB) لە دەستپێکی سیستەمدا بار ناکرێت — تەنها کاتێک
+   * هەناردەی ئێکسڵ یان باک ئەپ داوا بکرێت، بۆ ئەوەی دەستپێک خێرا بێت. */
+  let _xlsxPromise = null;
+
+  function ensureXlsx() {
+    if (typeof XLSX !== 'undefined') return Promise.resolve();
+    if (_xlsxPromise) return _xlsxPromise;
+    _xlsxPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'xlsx.full.min.js';
+      s.onload = () => resolve();
+      s.onerror = () => { _xlsxPromise = null; reject(new Error('کتابخانەی ئێکسڵ بار نەبووە — پەیوەندی بە ڕایەڵەوە پشکنین بکە')); };
+      document.head.appendChild(s);
+    });
+    return _xlsxPromise;
   }
 
   /* ---------------- پەیوەندی — ویندۆی یوسەر و ئۆپشنەکانی ژمارە تەلەفۆن ---------------- */
@@ -708,10 +929,14 @@ const UI = (() => {
   /* — ئایکۆنە مۆدێرنەکانی سیستەم (هەمان ستایلی ئایکۆنەکانی باڕی خوارەوە — SVG) — */
   const ICON_PATHS = {
     truck: '<path d="M1 3h13v13H1z"/><path d="M14 8h4.6l2.4 3.2V16H14z"/><circle cx="5.5" cy="18.5" r="1.8"/><circle cx="17.5" cy="18.5" r="1.8"/>',
+    target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/>',
     chart: '<path d="M3 3v18h18"/><path d="m7 13 3-4 4 3 5-7"/>',
     shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
     phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
     badge: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h4"/><path d="M15 12h4"/><path d="M6 18c.6-1.8 1.8-2.6 3-2.6s2.4.8 3 2.6"/>',
+    market: '<path d="M2 9 4 4h9l2 5"/><path d="M2 9h13"/><path d="M3 9v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9"/><path d="M6 21v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4"/><path d="M18.5 2.5a3.5 3.5 0 0 0-3.5 3.5c0 2.6 3.5 6.5 3.5 6.5s3.5-3.9 3.5-6.5a3.5 3.5 0 0 0-3.5-3.5Z"/><circle cx="18.5" cy="6" r="1.1" fill="currentColor"/>',
+    markets: '<path d="M2 9 4 4h9l2 5"/><path d="M2 9h13"/><path d="M3 9v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9"/><path d="M6 21v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4"/><path d="M18.5 2.5a3.5 3.5 0 0 0-3.5 3.5c0 2.6 3.5 6.5 3.5 6.5s3.5-3.9 3.5-6.5a3.5 3.5 0 0 0-3.5-3.5Z"/><circle cx="18.5" cy="6" r="1.1" fill="currentColor"/>',
+    store: '<path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/>',
     gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1 2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
     lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
     palette: '<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
@@ -946,7 +1171,6 @@ const UI = (() => {
     `;
 
     const actions = [];
-    const hasCustom = typeof onEdit === 'function' || typeof onDelete === 'function';
     if (typeof onEdit === 'function') {
       actions.push({
         label: '✏️ دەستکاری داتا',
@@ -958,14 +1182,6 @@ const UI = (() => {
         }
       });
     }
-    actions.push({
-      label: 'داخستن',
-      className: hasCustom ? 'btn-ghost' : 'btn-primary',
-      onClick: backdrop => {
-        backdrop.classList.remove('open');
-        setTimeout(() => backdrop.remove(), 220);
-      }
-    });
     if (typeof onDelete === 'function') {
       actions.push({
         label: '🗑️ سڕینەوە',
@@ -994,7 +1210,7 @@ const UI = (() => {
     const target = e.target;
     if (!target || target.tagName !== 'INPUT') return;
     if (target.type === 'number' || target.inputMode === 'numeric' || target.classList?.contains('num-only')) {
-      if (e.key === '.' || e.key === ',' || e.key === '٫' || e.key === 'Decimal' || e.keyCode === 190 || e.keyCode === 110 || e.keyCode === 188) {
+      if (e.key === '.' || e.key === '٫' || e.key === 'Decimal' || e.keyCode === 190 || e.keyCode === 110) {
         e.preventDefault();
       }
     }
@@ -1004,8 +1220,8 @@ const UI = (() => {
     const target = e.target;
     if (!target || target.tagName !== 'INPUT') return;
     if (target.type === 'number' || target.inputMode === 'numeric' || target.classList?.contains('num-only')) {
-      if (target.value && /[\.,٫]/.test(target.value)) {
-        target.value = target.value.split(/[\.,٫]/)[0];
+      if (target.value && /[\.٫]/.test(target.value)) {
+        target.value = target.value.split(/[\.٫]/)[0];
       }
     }
   }, true);
@@ -1015,9 +1231,9 @@ const UI = (() => {
     if (!target || target.tagName !== 'INPUT') return;
     if (target.type === 'number' || target.inputMode === 'numeric' || target.classList?.contains('num-only')) {
       const text = (e.clipboardData || window.clipboardData)?.getData('text');
-      if (text && /[\.,٫]/.test(text)) {
+      if (text && /[\.٫]/.test(text)) {
         e.preventDefault();
-        const clean = toLatinDigits(text).split(/[\.,٫]/)[0].replace(/[^\d-]/g, '');
+        const clean = toLatinDigits(text).replace(/[,،\s]/g, '').split(/[\.٫]/)[0].replace(/[^\d-]/g, '');
         if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
           document.execCommand('insertText', false, clean);
         } else {
@@ -1027,349 +1243,15 @@ const UI = (() => {
     }
   }, true);
 
-  /* ---------------- کیبۆردی تایبەتی سیستەم ----------------
-   *  - بە inputmode="none" کیبۆردی ڕەسەنی مۆبایل ناکرێتەوە (بێ readOnly — کەرێت و هەڵبژاردن وەک خۆیان دەمێننەوە)
-   *  - تەنها بە tap (focus/click) دەکرێتەوە — دەست لێدان بۆ سکڕۆڵکردن نە دەیکاتەوە نە دەیشارێتەوە
-   *  - دوگمەی گەڕانەوەی مووبایل پێش هەموو شتێک کیبۆردەکە دادەخات (backRegister) */
-
-  const keypad = { el: null, input: null, layout: null, forceNum: false, unreg: null, repeatT: null, repeatI: null };
-  const KURDISH_KEY_ROWS = [
-    ['ئ', 'ا', 'ب', 'پ', 'ت', 'ج', 'چ', 'ح', 'خ'],
-    ['د', 'ر', 'ڕ', 'ز', 'ژ', 'س', 'ش', 'ع', 'غ'],
-    ['ف', 'ڤ', 'ق', 'ک', 'گ', 'ل', 'ڵ', 'م', 'ن'],
-    ['ه', 'ە', 'و', 'ۆ', 'ۇ', 'ی', 'ێ', 'ء', 'ؤ'],
-  ];
+  /* ---------------- بردنی خانەی هەڵبژێردراو بۆ سەرەوەی شاشە لەسەر مۆبایل ---------------- */
 
   const coarsePointer = () => window.matchMedia('(pointer: coarse)').matches;
-
-  /* inputmode ی ڕەسەن — دوای ئەوەی خۆمان کردمانە "none" لە dataset دەمێنێتەوە */
-  const originalInputMode = t => (t.dataset.kpIm !== undefined ? t.dataset.kpIm : (t.getAttribute('inputmode') || ''));
-
-  const isNumericKeypadField = t =>
-    t instanceof HTMLInputElement &&
-    (t.type === 'number' || ['numeric', 'decimal', 'tel'].includes(originalInputMode(t)) || t.classList.contains('num-only'));
-
-  /* هەر جۆرێکی کیبۆرد ڕێکخستنی جیای خۆی هەیە — پیت و ژمارە بە جیا ئۆن/ئۆف دەکرێن */
-  const keypadEnabledFor = t => {
-    try {
-      if (!coarsePointer()) return false;
-      const s = Store.getSettings();
-      return isNumericKeypadField(t) ? !!s.customKeypadNum : !!s.customKeypadText;
-    } catch (_) { return false; }
-  };
-
-  const isKeypadField = t => {
-    if (!(t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) || t.disabled || t.readOnly) return false;
-    if (t instanceof HTMLInputElement && ['button', 'checkbox', 'color', 'date', 'datetime-local', 'file', 'hidden', 'image', 'month', 'radio', 'range', 'reset', 'submit', 'time', 'week'].includes(t.type)) return false;
-    return true;
-  };
-
-  const isActiveKeypadField = t => isKeypadField(t) && keypadEnabledFor(t);
-
-  /* پێش focus — کیبۆردی ڕەسەنی مۆبایل دەکوژێنێتەوە */
-  function prepareField(t) {
-    if (!isActiveKeypadField(t)) return;
-    if (t.dataset.kpIm === undefined) t.dataset.kpIm = t.getAttribute('inputmode') || '';
-    t.setAttribute('inputmode', 'none');
-  }
-
-  /* دوای blur — inputmode ی ڕەسەن دەگەڕێتەوە */
-  function restoreField(t) {
-    if (!t || !t.dataset || t.dataset.kpIm === undefined) return;
-    const v = t.dataset.kpIm;
-    delete t.dataset.kpIm;
-    if (v === '') t.removeAttribute('inputmode'); else t.setAttribute('inputmode', v);
-  }
-
-  function updateKeypadInput(inp, value, caret) {
-    inp.value = value;
-    try { inp.setSelectionRange(caret, caret); } catch (_) {}
-    inp.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-
-  function insertKeypadText(inp, text) {
-    const start = inp.selectionStart ?? inp.value.length;
-    const end = inp.selectionEnd ?? start;
-    const max = inp.maxLength > 0 ? inp.maxLength : Infinity;
-    if (start === end && inp.value.length + text.length > max) return;
-    updateKeypadInput(inp, inp.value.slice(0, start) + text + inp.value.slice(end), start + text.length);
-  }
-
-  function deleteKeypadText(inp) {
-    const start = inp.selectionStart ?? inp.value.length;
-    const end = inp.selectionEnd ?? start;
-    if (start !== end) updateKeypadInput(inp, inp.value.slice(0, start) + inp.value.slice(end), start);
-    else if (start > 0) updateKeypadInput(inp, inp.value.slice(0, start - 1) + inp.value.slice(end), start - 1);
-  }
-
-  function keypadMarkup(layout, canToggle) {
-    const key = (k, label, cls = '') => `<button type="button" class="${cls}" data-k="${k}" tabindex="-1">${label}</button>`;
-    const charKey = char => `<button type="button" class="kp-letter" data-k="char" data-char="${char}" tabindex="-1">${char}</button>`;
-    const icoDel = icon('backspace', 22), icoDone = icon('check', 24), icoNext = icon('arrowRight', 22);
-
-    /* کیبۆردی پیت — تەنها بۆ خانەکانی دەق */
-    if (layout === 'text') {
-      return `
-        <div class="kp-text-layout">
-          ${KURDISH_KEY_ROWS.map(row => `<div class="kp-row">${row.map(charKey).join('')}</div>`).join('')}
-          <div class="kp-row kp-controls">
-            ${key('num', '123', 'kp-fn')}${key('space', 'بۆشایی', 'kp-space')}${key('del', icoDel, 'kp-del')}${key('next', icoNext, 'kp-next')}${key('done', icoDone, 'kp-done')}
-          </div>
-        </div>`;
-    }
-    /* کیبۆردی ژمارە — + و − تێدایە چونکە کیبۆردی ڕەسەنی iOS لە کاتی نووسینی ژمارەدا پیشانی نادات */
-    return `
-      <div class="kp-number-layout">
-        ${key('7', '7')}${key('8', '8')}${key('9', '9')}${key('del', icoDel, 'kp-del')}
-        ${key('4', '4')}${key('5', '5')}${key('6', '6')}${key('+', icon('plus', 22), 'kp-op')}
-        ${key('1', '1')}${key('2', '2')}${key('3', '3')}${key('minus', icon('minus', 22), 'kp-op')}
-        ${key('0', '0')}${canToggle ? key('num', 'ابج', 'kp-fn') : key('clear', 'C', 'kp-clear')}${key('next', icoNext, 'kp-next')}${key('done', icoDone, 'kp-done')}
-      </div>`;
-  }
-
-  function renderKeypad() {
-    if (!keypad.el || !keypad.input) return;
-    const numericField = isNumericKeypadField(keypad.input);
-    const layout = (numericField || keypad.forceNum) ? 'numeric' : 'text';
-    keypad.layout = layout;
-    keypad.el.dataset.layout = layout;
-    keypad.el.innerHTML = keypadMarkup(layout, !numericField);
-    syncKeypadSpace();
-  }
-
-  /* ڕادەگەیەنێت کیبۆردەکە کراوەتەوە + بەرزی ڕاستەقینەی دەنێرێت بۆ CSS بۆ دروستکردنی شوێنی سکڕۆڵ */
-  function syncKeypadSpace() {
-    if (!keypad.el) return;
-    document.body.classList.add('keypad-open');
-    document.body.style.setProperty('--kp-h', `${Math.round(keypad.el.offsetHeight)}px`);
-  }
-
-  function goNextField(inp) {
-    const scope = inp.closest('.modal-body, form, .login-view, .page') || document.body;
-    const all = [...scope.querySelectorAll('input, textarea')].filter(el => isActiveKeypadField(el) && el.offsetParent !== null);
-    const next = all[all.indexOf(inp) + 1];
-    if (!next) { closeKeypad(true); return; }
-    prepareField(next);
-    next.focus();
-  }
-
-  function stopKeyRepeat() {
-    clearTimeout(keypad.repeatT); clearInterval(keypad.repeatI);
-    keypad.repeatT = keypad.repeatI = null;
-  }
-
-  function pressKey(btn) {
-    const inp = keypad.input;
-    if (!inp || !inp.isConnected) { closeKeypad(); return false; }
-    try { navigator.vibrate && navigator.vibrate(6); } catch (_) {}
-    btn.classList.add('pressed');
-    setTimeout(() => btn.classList.remove('pressed'), 90);
-    const k = btn.dataset.k;
-    if (k === 'done') { closeKeypad(true); return false; }
-    if (k === 'next') { goNextField(inp); return false; }
-    if (k === 'num') { keypad.forceNum = !keypad.forceNum; renderKeypad(); return false; }
-    if (k === 'del') { deleteKeypadText(inp); return true; }
-    if (k === 'clear') { updateKeypadInput(inp, '', 0); return false; }
-    if (k === 'space') { insertKeypadText(inp, ' '); return false; }
-    if (k === 'char') { insertKeypadText(inp, btn.dataset.char); return false; }
-    insertKeypadText(inp, k === 'minus' ? '-' : k);
-    return false;
-  }
-
-  function buildKeypadEl() {
-    const el = document.createElement('div');
-    el.className = 'num-keypad';
-    el.setAttribute('dir', 'ltr');
-    /* لەسەر pointerdown کار دەکات (خێراتر) و focus ی خانەکە ناگۆڕێت */
-    el.addEventListener('pointerdown', e => {
-      e.preventDefault();
-      const btn = e.target.closest('button[data-k]');
-      if (!btn) return;
-      stopKeyRepeat();
-      const repeatable = pressKey(btn);
-      /* ڕاگرتنی ⌫ — بە دووبارەبوونەوە دەسڕێتەوە */
-      if (repeatable) {
-        keypad.repeatT = setTimeout(() => {
-          keypad.repeatI = setInterval(() => {
-            if (!keypad.input || !keypad.input.isConnected) { stopKeyRepeat(); return; }
-            deleteKeypadText(keypad.input);
-          }, 55);
-        }, 380);
-      }
-    });
-    ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => el.addEventListener(ev, stopKeyRepeat));
-    el.addEventListener('click', e => e.preventDefault());
-    el.addEventListener('contextmenu', e => e.preventDefault());
-    document.body.appendChild(el);
-    return el;
-  }
-
-  function keepKeypadFieldVisible(inp) {
-    const pass = behavior => () => {
-      if (keypad.input !== inp || !keypad.el?.classList.contains('open') || !inp.isConnected) return;
-      /* خانەکە لەگەڵ ناونیشانەکەی (label) بۆ سەرەوە بچێت — لیست بۆکسەکەی ژێری بەتەواوەتی ببینرێت */
-      const anchor = inp.closest('.field') || inp;
-      const anchorRect = anchor.getBoundingClientRect();
-      const keypadTop = keypad.el.getBoundingClientRect().top;
-      const modalBody = inp.closest('.modal-body');
-      const topGap = 12;
-      /* 5px بۆشایی + 230px بەرزی لیستی ئۆتۆکۆمپلیت لە ژێر خانەکەوە */
-      const listRoom = 240;
-      const bottomLimit = keypadTop - 16;
-
-      if (modalBody) {
-        const bodyTop = modalBody.getBoundingClientRect().top + topGap;
-        const delta = Math.max(anchorRect.top - bodyTop, anchorRect.bottom + listRoom > bottomLimit ? anchorRect.bottom + listRoom - bottomLimit : 0);
-        if (delta > 2) modalBody.scrollBy({ top: delta, behavior });
-        return;
-      }
-
-      /* 84px = لە ژێر توپبارەکە */
-      const delta = Math.max(anchorRect.top - 84, anchorRect.bottom + listRoom > bottomLimit ? anchorRect.bottom + listRoom - bottomLimit : 0);
-      if (delta > 2) window.scrollBy({ top: delta, behavior });
-    };
-    /* دوو هەنگاو: یەکەم بە سکڕۆڵی نەرم، دووەم ڕاستەوخۆ بۆ جێگیری کۆتایی */
-    setTimeout(pass('smooth'), 240);
-    setTimeout(pass('auto'), 700);
-  }
-
-  function openKeypad(inp) {
-    if (!keypad.el) keypad.el = buildKeypadEl();
-    const changedField = keypad.input !== inp;
-    const wasOpen = keypad.el.classList.contains('open');
-    keypad.input = inp;
-    if (changedField) keypad.forceNum = false;
-    if (changedField || !wasOpen) renderKeypad();
-    keypad.el.classList.add('open');
-    /* دوگمەی گەڕانەوەی مووبایل = داخستنی کیبۆردەکە (نەک ویندۆکە یان ئەپەکە) */
-    if (!keypad.unreg) keypad.unreg = backRegister(() => { keypad.unreg = null; closeKeypad(true); });
-    syncKeypadSpace();
-    keepKeypadFieldVisible(inp);
-  }
-
-  function closeKeypad(blur) {
-    const inp = keypad.input;
-    keypad.input = null;
-    keypad.layout = null;
-    keypad.forceNum = false;
-    stopKeyRepeat();
-    if (keypad.el) keypad.el.classList.remove('open');
-    document.body.classList.remove('keypad-open');
-    document.body.style.removeProperty('--kp-h');
-    if (keypad.unreg) { const u = keypad.unreg; keypad.unreg = null; u(); }
-    if (blur && inp && inp.isConnected && document.activeElement === inp) inp.blur();
-  }
-
-  /* — پێش tap: کیبۆردی ڕەسەنی دەکوژێنێتەوە (کردنەوەی کیبۆرد دەکەوێتە دوای tap، نەک دەست لێدان) — */
-  let lastDownTarget = null; // شوێنی دەستلێدانی یەکەم — بۆ ئەوەی جووڵەی ویندۆکە (کاتی کردنەوەی کیبۆرد) وەک tap ی دەرەوە حیساب نەکرێت
-  document.addEventListener('pointerdown', e => { lastDownTarget = e.target; prepareField(e.target); }, true);
-
-  /* — focus ی ڕاستەقینە (tap) — */
-  document.addEventListener('focusin', e => {
-    const t = e.target;
-    if (isActiveKeypadField(t)) { prepareField(t); openKeypad(t); }
-    else if (keypad.input) closeKeypad();
-  });
-
-  document.addEventListener('focusout', e => {
-    const t = e.target;
-    restoreField(t);
-    if (keypad.input === t) {
-      /* دواکەوتن بۆ ئەوەی گواستنەوە بۆ خانەیەکی تر کیبۆردەکە نەپەڕێنێت */
-      setTimeout(() => {
-        if (keypad.input === t && document.activeElement !== t) closeKeypad();
-      }, 60);
-    }
-  });
-
-  /* — tap: خانەی focus کراو کە کیبۆردەکەی داخراوە دووبارە دەکرێتەوە؛ tap لە دەرەوە دایدەخات (سکڕۆڵ نا) — */
-  document.addEventListener('click', e => {
-    const t = e.target;
-    const down = lastDownTarget;
-    lastDownTarget = null;
-    if (isActiveKeypadField(t)) {
-      if (keypad.input !== t || !keypad.el?.classList.contains('open')) { prepareField(t); openKeypad(t); }
-      return;
-    }
-    /* دەستلێدانەکە لەسەر خانەیەکی کیبۆرد/خودی کیبۆرد/لیستی پێشنیار دەستی پێکردووە — ئەو click ی دوای جووڵەی ڕووکارە، دەرەوە نییە */
-    if (down instanceof Element && (isActiveKeypadField(down) || keypad.el?.contains(down) || down.closest('.ac-list'))) return;
-    if (keypad.input && keypad.el && !keypad.el.contains(t) && !t.closest('.ac-list')) closeKeypad(true);
-  }, true);
-
-  /* ---- ئامرازی + / − لەسەر ئایۆئێس بۆ کاتێک کیبۆردی ژمارەیی سیستەم کراوەیە ---- */
-  /* بەتەنها کار دەکات لەسەر ئایۆئێس (webkit-touch-callout) و customKeypadNum ناچالاکە */
-  const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-  let iosToolbar = null;
-  let iosToolbarTarget = null;
-  let iosToolbarTimer = null;
-
-  function buildIOSToolbar() {
-    if (iosToolbar) return;
-    const bar = document.createElement('div');
-    bar.id = 'ios-num-toolbar';
-    bar.innerHTML = `
-      <button type="button" data-op="minus" tabindex="-1">−</button>
-      <button type="button" data-op="plus"  tabindex="-1">+</button>
-      <button type="button" data-op="done"  tabindex="-1">✓</button>`;
-    bar.addEventListener('pointerdown', e => e.preventDefault());
-    bar.addEventListener('click', e => {
-      const btn = e.target.closest('button[data-op]');
-      if (!btn || !iosToolbarTarget || !iosToolbarTarget.isConnected) return;
-      const op = btn.dataset.op;
-      const inp = iosToolbarTarget;
-      if (op === 'done') { inp.blur(); return; }
-      const cur = parseFloat(inp.value) || 0;
-      const step = parseFloat(inp.step) || 1;
-      const next = op === 'plus' ? cur + step : cur - step;
-      const min = inp.min !== '' ? parseFloat(inp.min) : -Infinity;
-      inp.value = String(Math.max(min, next));
-      inp.dispatchEvent(new Event('input', { bubbles: true }));
-      inp.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    document.body.appendChild(bar);
-    iosToolbar = bar;
-  }
-
-  function openIOSToolbar(inp) {
-    if (!isIOS() || !coarsePointer()) return;
-    if (!isNumericKeypadField(inp)) return;
-    try { if (Store.getSettings().customKeypadNum) return; } catch (_) {}
-    buildIOSToolbar();
-    iosToolbarTarget = inp;
-    iosToolbar.classList.add('open');
-  }
-
-  function closeIOSToolbar() {
-    if (iosToolbar) iosToolbar.classList.remove('open');
-    iosToolbarTarget = null;
-    clearTimeout(iosToolbarTimer);
-  }
-
-  document.addEventListener('focusin', e => {
-    const t = e.target;
-    if (isNumericKeypadField(t) && !keypadEnabledFor(t)) {
-      clearTimeout(iosToolbarTimer);
-      iosToolbarTimer = setTimeout(() => openIOSToolbar(t), 120);
-    } else {
-      closeIOSToolbar();
-    }
-  });
-
-  document.addEventListener('focusout', e => {
-    if (iosToolbarTarget === e.target) {
-      // کچووکەکانی toolbar دواخستنی blur ئەکەن بۆ ئەوەی click جێبەجێ بکرێت
-      iosToolbarTimer = setTimeout(closeIOSToolbar, 200);
-    }
-  });
-
-  /* ---------------- بردنی خانەی هەڵبژێردراو بۆ سەرەوەی شاشە لەسەر مۆبایل ---------------- */
 
   document.addEventListener('focusin', e => {
     const t = e.target;
     if (!(t instanceof HTMLElement) || !t.matches('input, select, textarea')) return;
     if (['checkbox', 'radio', 'button', 'submit', 'file', 'color', 'range'].includes(t.type)) return;
-    if (!coarsePointer() || (isKeypadField(t) && keypadEnabledFor(t))) return;
+    if (!coarsePointer()) return;
     setTimeout(() => {
       if (!t.isConnected) return;
       const modalBody = t.closest('.modal-body');
@@ -1444,8 +1326,17 @@ const UI = (() => {
       if (toAlert.length > 0) {
         localStorage.setItem('dlv_sys_alert_ts', String(new Date(toAlert[0].created_at).getTime()));
         if ('Notification' in window && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
-          navigator.serviceWorker.ready.then(reg => {
-            toAlert.reverse().forEach(n => {
+          navigator.serviceWorker.ready.then(async reg => {
+            // وێنەی یوسەرەکەی ئەنجامدەری کردارەکە — لە لیستی یوسەرانەوە بە ناوەکەی دەدۆزرێتەوە
+            let users = [];
+            try { users = (await Store.loadLists()).users || []; } catch (_) { users = []; }
+            const avatarOf = name => {
+              if (!name) return null;
+              const target = norm(name);
+              const u = users.find(x => norm(x.username) === target);
+              return (u && u.avatar_url) ? u.avatar_url : null;
+            };
+            for (const n of toAlert.reverse()) {
               let shortMsg = n.action;
               const actionMatch = n.action.match(/^(.*?)\s*—/);
               const actorMatch = n.action.match(/\(لەلایەن\s*(.*?)\)$/);
@@ -1456,13 +1347,13 @@ const UI = (() => {
               }
               reg.showNotification('نۆتیفیکەیشن', {
                 body: shortMsg,
-                icon: './icon-192.png',
+                icon: avatarOf(actorMatch ? actorMatch[1] : null) || './icon-192.png',
                 badge: './icon-192.png',
                 tag: 'sys-alert-' + n.id,
                 renotify: true,
                 silent: false
               });
-            });
+            }
           }).catch(() => {});
         }
       }
@@ -1536,6 +1427,7 @@ const UI = (() => {
     '👥': 'users', '⏳': 'hourglass', '⏱': 'clock', '📥': 'download', '📋': 'clipboard', '🖼': 'image',
     '📭': 'inbox', '🌙': 'moon', '☀': 'sun', '💡': 'bulb', '🎨': 'palette', '📏': 'ruler', '▶': 'play',
     '📦': 'package', '🔠': 'type', '⌨': 'keyboard', '📱': 'smartphone', '🧭': 'compass', '🔍': 'search',
+    '🏪': 'market', '🏬': 'market', '🛒': 'market',
   };
   const EMOJI_RE = /\u{1F9D1}\u200D\u2708\uFE0F?|[\u{1F300}-\u{1FAFF}\u2600-\u27BF\u2B50\u23E9-\u23FF\u232B\u229E\u2195\u2139\u25B6\u27F2]\uFE0F?/gu;
   const EMOJI_TEST = new RegExp(EMOJI_RE.source, 'u');
@@ -1617,11 +1509,97 @@ const UI = (() => {
   else initIconize();
 
 
+  /** پشکنینی هاوکاتبوونی (overlap) دوو گەشت لە کاتدا:
+   * ئەگەر لە هەمان کاتدا لە کاردا بووبن، کاتی دەرچوونیان یەک بووبێت، یان ماوەی گەشتەکەیان هاوبەش بێت دەبێتە true. */
+  function recordsTimeOverlap(r1, r2) {
+    if (!r1 || !r2) return false;
+    const s1 = timeToMinutes(r1.record_time);
+    const s2 = timeToMinutes(r2.record_time);
+
+    // ئەگەر کاتی دەرچوونی یەکێکیان دیار نەبوو، لەبەرئەوەی لە هەمان بەرواردان وەک هاوکات حیساب دەکرێت
+    if (s1 === null || s2 === null) return true;
+
+    // هەمان کاتی دەرچوون (دەستپێک)
+    if (s1 === s2) return true;
+
+    let e1 = timeToMinutes(r1.arrival_time);
+    let e2 = timeToMinutes(r2.arrival_time);
+
+    // ئەگەر کاتی گەشتنەوە کەمتر بێت لە دەستپێک (بۆ شەو تا بەرەبەیان)
+    if (e1 !== null && e1 < s1) e1 += 24 * 60;
+    if (e2 !== null && e2 < s2) e2 += 24 * 60;
+
+    if (s1 < s2) {
+      // r1 زووتر دەرچووە؛ ئەگەر تا کاتی دەرچوونی r2 نەگەشتبێتەوە دەبێتە دووبارە/هاوکات
+      return e1 === null || s2 < e1;
+    } else {
+      // r2 زووتر دەرچووە؛ ئەگەر تا کاتی دەرچوونی r1 نەگەشتبێتەوە دەبێتە دووبارە/هاوکات
+      return e2 === null || s1 < e2;
+    }
+  }
+
+  /** چاودێرم بە — Map ی ئەو تۆمارانەی لە هەمان بەروار و هەمان کاتدا یەکێک لە خانەکانی
+   *  (سایەق، دابەشکار، ژمارەی سەیارە) لە تۆمارێکی تردا دووبارە بووەتەوە،
+   *  تەنانەت ئەگەر کاتی گەشتنەوەشیان تۆمارکردبێت (چونکە نابێت لە هەمان بەروار و هەمان کات هەمان داتا هەبێت).
+   *  خانەی ناو دەکرێت چەند ناوی تێدابێت («و» / کۆما) و ئایدیی *_id ـیش دەگرێتەوە؛ پاشگری دوو/سێ لادەبرێت.
+   *  ئەگەر ئۆپشنەکە کوژێنرابێت Map ی بەتاڵ دەگەڕێنێتەوە. */
+  function dupWatchMap(rows) {
+    const out = new Map(); // ئایدی تۆمار → Set ی ناوی ئەو خانانەی دووبارە بوونەتەوە
+    if (Store.getSettings().watchDuplicates === false) return out;
+    const SEP = /(?:\s+و\s+|\s*\(\s*و\s*\)\s*|\s*[,،&+/]\s*)/;
+    const strip = s => norm(s).replace(/\s*(دوو|سێ)$/, '').trim();
+    const nameTokens = v => String(v || '').split(SEP).map(strip).filter(Boolean).map(n => 'n:' + n);
+    const idTokens = v => parseIdList(v).map(n => 'i:' + n);
+
+    const fields = [
+      r => [...nameTokens(r.driver), ...idTokens(r.driver_id)],
+      r => [...nameTokens(r.distributor), ...idTokens(r.distributor_id)],
+      r => { const v = norm(r.vehicle); return v ? ['n:' + v] : []; },
+    ];
+    const validRows = (rows || []).filter(r => r && typeof r === 'object');
+    validRows.forEach((r, idx) => {
+      if (r.id == null && !r._rowKey) r._rowKey = 'row_' + idx;
+    });
+    const rowId = r => (r.id != null ? r.id : r._rowKey);
+
+    ['driver', 'distributor', 'vehicle'].forEach((fieldName, fi) => {
+      const getTokens = fields[fi];
+      const groups = new Map();
+      validRows.forEach(r => {
+        new Set(getTokens(r)).forEach(t => {
+          const k = (r.record_date || '') + '|' + t;
+          if (!groups.has(k)) groups.set(k, []);
+          groups.get(k).push(r);
+        });
+      });
+      groups.forEach(list => {
+        if (list.length < 2) return;
+        for (let i = 0; i < list.length; i++) {
+          for (let j = i + 1; j < list.length; j++) {
+            const r1 = list[i], r2 = list[j];
+            const id1 = rowId(r1);
+            const id2 = rowId(r2);
+            if (id1 === id2) continue;
+            if (recordsTimeOverlap(r1, r2)) {
+              if (!out.has(id1)) out.set(id1, new Set());
+              out.get(id1).add(fieldName);
+              if (!out.has(id2)) out.set(id2, new Set());
+              out.get(id2).add(fieldName);
+            }
+          }
+        }
+      });
+    });
+    return out;
+  }
+
   return {
-    esc, toLatinDigits, cleanInt, hasOperator, fmtNum, fmtMoney, todayStr, monthStartStr, monthEndStr, nowTime, timeToMinutes, daysAgoStr, fmtDateHuman,
+    dupWatchMap, recordsTimeOverlap, esc, toLatinDigits, cleanInt, hasOperator, fmtNum, fmtMoney, todayStr, monthStartStr, monthEndStr, nowTime, timeToMinutes, daysAgoStr, fmtDateHuman,
     weekdayKu, toast, openModal, confirmDialog, autocomplete, avatarHtml, setLoading, btnLoading, sleep,
     norm, userMatches, parseIdList, recMatchesUser, calcDuration, durationMinutes, parseDurationMin, recordDurationMinutes, workTimeDisplay, fmtDuration, durationToHMM,
     sortUsers, openRecordFullscreen, openUserProfile, openPhoneOptions, avatarEditor, intlPhoneDigits, phoneChipHtml, maskSecretInputs, icon, backRegister, iconize: iconizeTree,
-    fetchVisibleNotifications, openNotificationsPanel, refreshNotifBadge
+    ensureXlsx, animLayerHtml, btnScene, btnBusy,
+    fetchVisibleNotifications, openNotificationsPanel, refreshNotifBadge,
+    formatThousands, wireThousands
   };
 })();

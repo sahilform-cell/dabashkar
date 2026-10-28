@@ -59,6 +59,73 @@ const API = (() => {
     return p.toString() ? '?' + p.toString() : '';
   }
 
+  /* ---------------- دەروازەی پارێزراو (Supabase Edge Function) ----------------
+   * کاتێک CONFIG.GATEWAY_URL دانراوە، هەموو داتاکان بە دەروازەکەوە تێپەڕ دەبن:
+   * چوونەژوورەوە لە سێرڤەر پشکنین دەکرێت، تێپەڕەوشەکان بۆ کڵایەنت نانێردران،
+   * و دەسەڵاتەکان لە سێرڤەرەوە جێبەجێ دەبن — نەک تەنها لە ڕووکارەکەدا. */
+
+  const gwOn = () => !!CONFIG.GATEWAY_URL;
+
+  function appToken() {
+    try {
+      if (typeof Store !== 'undefined' && Store.getSession) {
+        const s = Store.getSession();
+        return s && s.token ? s.token : null;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  async function gw(op, payload = {}) {
+    const headers = {
+      'Content-Type': 'application/json',
+      'apikey': CONFIG.LISTS_KEY,
+      'Authorization': `Bearer ${CONFIG.LISTS_KEY}`,
+    };
+    const tk = appToken();
+    if (tk) headers['X-App-Token'] = tk;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    let res;
+    try {
+      res = await fetch(CONFIG.GATEWAY_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ op, payload }),
+        signal: controller.signal,
+      });
+    } catch (netErr) {
+      clearTimeout(timer);
+      if (netErr.name === 'AbortError') {
+        throw new Error('کاتی پەیوەندی بەسەرچوو بەهۆی خاوی هێڵی ئینتەرنێت — تکایە دووبارە هەوڵبدەرەوە');
+      }
+      throw new Error('پەیوەندی بە دەروازەی سیستەمەوە نەکرا — تکایە هێڵی ئینتەرنێتەکەت پشکنین بکە');
+    } finally {
+      clearTimeout(timer);
+    }
+
+    const text = await res.text();
+    let data = null;
+    if (text) { try { data = JSON.parse(text); } catch (_) { data = null; } }
+
+    if (!res.ok || !data || data.ok !== true) {
+      const code = data && data.code;
+      const err = new Error((data && data.error) || `هەڵەیەکی ڕایەڵە ڕوویدا (${res.status})`);
+      err.code = code;
+      err.status = res.status;
+      // سێشنەکە بەسەرچووە یان دروست نییە — گەڕانەوە بۆ شاشەی چوونەژوورەوە
+      // (تێبینی: BAD_CREDENTIALS ی چوونەژوورەوە ناگرێتەوە — تەنها سێشنی کۆن)
+      if (code === 'AUTH_REQUIRED' || code === 'TOKEN_INVALID' || code === 'TOKEN_EXPIRED') {
+        const hadSession = !!appToken();
+        try { if (typeof Store !== 'undefined') Store.clearSession(); } catch (_) {}
+        if (hadSession) setTimeout(() => location.reload(), 60);
+      }
+      throw err;
+    }
+    return data.data;
+  }
+
   /* ---------------- خشتەی تۆمارەکانی گەیاندن ---------------- */
 
   // ستوونە زگماکییەکانی delivery_records — تەنها ئەگەر نەتوانرا ستوونەکان
@@ -75,12 +142,16 @@ const API = (() => {
   /** دۆزینەوەی ستوونە ڕاستەقینەکانی خشتەکە لە یەک ڕیزی نموونەوە (کاشکراو بۆ سێشن) */
   function detectRecordsColumns() {
     if (!_recordsColumnsPromise) {
-      _recordsColumnsPromise = request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
-        `/${CONFIG.RECORDS_TABLE}?select=*&limit=1`)
-        .then(rows => (rows && rows[0] && Object.keys(rows[0]).length)
-          ? Object.keys(rows[0])
-          : RECORDS_FALLBACK_COLUMNS.slice())
-        .catch(() => RECORDS_FALLBACK_COLUMNS.slice());
+      _recordsColumnsPromise = gwOn()
+        ? gw('records.columns', {})
+          .then(d => (d && Array.isArray(d.columns) && d.columns.length) ? d.columns : RECORDS_FALLBACK_COLUMNS.slice())
+          .catch(() => RECORDS_FALLBACK_COLUMNS.slice())
+        : request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
+          `/${CONFIG.RECORDS_TABLE}?select=*&limit=1`)
+          .then(rows => (rows && rows[0] && Object.keys(rows[0]).length)
+            ? Object.keys(rows[0])
+            : RECORDS_FALLBACK_COLUMNS.slice())
+          .catch(() => RECORDS_FALLBACK_COLUMNS.slice());
     }
     return _recordsColumnsPromise;
   }
@@ -193,19 +264,24 @@ const API = (() => {
 
   const Records = {
     async list(params = {}) {
+      if (gwOn()) return gw('records.list', { params });
       return request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
         `/${CONFIG.RECORDS_TABLE}${qs({ select: '*', order: 'record_date.desc,id.desc', ...params })}`);
     },
 
     async byId(id) {
+      if (gwOn()) return gw('records.byId', { id });
       const rows = await request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
         `/${CONFIG.RECORDS_TABLE}?select=*&id=eq.${encodeURIComponent(id)}&limit=1`);
       return rows && rows[0] ? rows[0] : null;
     },
 
     async insert(row) {
-      // ئایدی بەکارهێنەران (usersv2) لەگەڵ ناوەکان تۆمار دەکرێن بۆ هاوتاکردنی ورد
-      const clean = await sanitizeRecordPayload(await attachUserIds(row));
+      // ئایدی بەکارهێنەران (usersv2) لەگەڵ ناوەکان تۆمار دەکرێن — لە هەردوو مۆدیدا.
+      // لە مۆدی دەروازەدا ئەگەر ئەمە شکست بخوات، سێرڤەر بە خۆکاری ئایدیەکان چارەسەر دەکات.
+      const withIds = await attachUserIds(row);
+      if (gwOn()) return gw('records.insert', { row: withIds });
+      const clean = await sanitizeRecordPayload(withIds);
       const rows = await request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
         `/${CONFIG.RECORDS_TABLE}`, { method: 'POST', body: clean, prefer: 'return=representation' });
       return rows && rows[0] ? rows[0] : null;
@@ -220,10 +296,13 @@ const API = (() => {
      * هیچ داتایەک وونی نابێت. (INSERT و DELETE بە ئازادی کار دەکەن)
      */
     async update(id, patch) {
+      // ئایدییەکان پێش ناردن حل دەکرێن (لە هەردوو مۆدیدا) — ئەگەر ناو گۆڕدرابێت
+      const withIds = await attachUserIds(patch);
+      if (gwOn()) return gw('records.update', { id, patch: withIds });
       // سەرەتا ستوونە نیەبووەکان (وەک work_time) لادەبرێن — ئەگینا PGRST204
       // دەگەڕێتەوە و چارەسەری لەبەرچاوگراوەکەی خوارەوە هەرگیز کار ناکات.
       // هەروەها ئەگەر ناوی شۆفێر/دابەشکار/مەندوب گۆڕدرابێت ئایدیەکەی نوێ دەکرێتەوە.
-      const clean = await sanitizeRecordPayload(await attachUserIds(patch));
+      const clean = await sanitizeRecordPayload(withIds);
       try {
         const rows = await request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
           `/${CONFIG.RECORDS_TABLE}?id=eq.${encodeURIComponent(id)}`,
@@ -272,8 +351,13 @@ const API = (() => {
       let lastId = 0, done = 0, updated = 0, failed = 0;
       // خوێندنەوە بە کێرسۆری id (نەک offset) چونکە ڕیزە پڕکراوەکان لە فلتەرەکە دەردەکەون
       while (true) {
-        const rows = await request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
-          `/${CONFIG.RECORDS_TABLE}?select=*&or=(driver_id.is.null,distributor_id.is.null,delegate_id.is.null)&id=gt.${lastId}&order=id.asc&limit=100`);
+        const rows = await Records.list({
+          select: '*',
+          or: '(driver_id.is.null,distributor_id.is.null,delegate_id.is.null)',
+          id: `gt.${lastId}`,
+          order: 'id.asc',
+          limit: 100,
+        });
         if (!rows.length) break;
 
         for (const r of rows) {
@@ -287,9 +371,13 @@ const API = (() => {
           });
           if (Object.keys(patch).length) {
             try {
-              await request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
-                `/${CONFIG.RECORDS_TABLE}?id=eq.${encodeURIComponent(r.id)}`,
-                { method: 'PATCH', body: patch, prefer: 'return=minimal' });
+              if (gwOn()) {
+                await gw('records.update', { id: r.id, patch });
+              } else {
+                await request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
+                  `/${CONFIG.RECORDS_TABLE}?id=eq.${encodeURIComponent(r.id)}`,
+                  { method: 'PATCH', body: patch, prefer: 'return=minimal' });
+              }
               updated++;
             } catch (_) {
               failed++;
@@ -304,6 +392,7 @@ const API = (() => {
     },
 
     async remove(id) {
+      if (gwOn()) return gw('records.remove', { id });
       return request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
         `/${CONFIG.RECORDS_TABLE}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
     },
@@ -315,23 +404,40 @@ const API = (() => {
     /**
      * ستوونی کلیلی usersv2 ناوی driver_id یە (نەک id) — بە alias ی PostgREST
      * وەک id دەخوێنرێتەوە بۆ ئەوەی تەواوی سیستەم بە user.id کار بکات.
+     * لە مۆدی دەروازەدا تێپەڕەوشە (password) تەنها بۆ بەڕێوەبەر دەگەڕێتەوە.
      */
     async users() {
+      if (gwOn()) return gw('lists.users', {});
       return request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         `/${CONFIG.USERS_TABLE}?select=id:driver_id,username,password,profession,avatar_url,phone_number_1,phone_number_2,location&order=driver_id`);
     },
 
     async zones() {
+      if (gwOn()) return gw('lists.zones', {});
       return request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         `/${CONFIG.ZONES_TABLE}?select=*&order=id`);
     },
 
     async vehicles() {
+      if (gwOn()) {
+        try { return await gw('lists.vehicles', {}); }
+        catch (err) {
+          // ئەگەر دەروازە نەیتوانی — هەوڵی خوێندنەوەی ڕاستەوخۆ لە Supabase
+          console.warn('lists.vehicles لە دەروازە سەرنەکەوت، هەوڵی ڕاستەوخۆ:', err);
+          return request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
+            `/${CONFIG.VEHICLES_TABLE}?select=*&order=id`);
+        }
+      }
       return request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         `/${CONFIG.VEHICLES_TABLE}?select=*&order=id`);
     },
 
     async insertUser(row) {
+      if (gwOn()) {
+        const r = await gw('lists.insertUser', { row });
+        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+        return r;
+      }
       const rows = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         `/${CONFIG.USERS_TABLE}`, { method: 'POST', body: row, prefer: 'return=representation' });
       if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
@@ -339,6 +445,11 @@ const API = (() => {
     },
 
     async updateUser(id, patch) {
+      if (gwOn()) {
+        const r = await gw('lists.updateUser', { id, patch });
+        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+        return r;
+      }
       const rows = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         `/${CONFIG.USERS_TABLE}?driver_id=eq.${encodeURIComponent(id)}`,
         { method: 'PATCH', body: patch, prefer: 'return=representation' });
@@ -347,6 +458,11 @@ const API = (() => {
     },
 
     async deleteUser(id) {
+      if (gwOn()) {
+        const r = await gw('lists.deleteUser', { id });
+        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+        return r;
+      }
       const res = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         `/${CONFIG.USERS_TABLE}?driver_id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
@@ -354,6 +470,11 @@ const API = (() => {
     },
 
     async insertZone(row) {
+      if (gwOn()) {
+        const r = await gw('lists.insertZone', { row });
+        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+        return r;
+      }
       const rows = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         `/${CONFIG.ZONES_TABLE}`, { method: 'POST', body: row, prefer: 'return=representation' });
       if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
@@ -361,6 +482,11 @@ const API = (() => {
     },
 
     async updateZone(id, patch) {
+      if (gwOn()) {
+        const r = await gw('lists.updateZone', { id, patch });
+        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+        return r;
+      }
       const rows = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         `/${CONFIG.ZONES_TABLE}?id=eq.${encodeURIComponent(id)}`,
         { method: 'PATCH', body: patch, prefer: 'return=representation' });
@@ -369,8 +495,50 @@ const API = (() => {
     },
 
     async deleteZone(id) {
+      if (gwOn()) {
+        const r = await gw('lists.deleteZone', { id });
+        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+        return r;
+      }
       const res = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         `/${CONFIG.ZONES_TABLE}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+      return res;
+    },
+
+    async insertVehicle(row) {
+      if (gwOn()) {
+        const r = await gw('lists.insertVehicle', { row });
+        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+        return r;
+      }
+      const rows = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
+        `/${CONFIG.VEHICLES_TABLE}`, { method: 'POST', body: row, prefer: 'return=representation' });
+      if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+      return rows && rows[0] ? rows[0] : null;
+    },
+
+    async updateVehicle(id, patch) {
+      if (gwOn()) {
+        const r = await gw('lists.updateVehicle', { id, patch });
+        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+        return r;
+      }
+      const rows = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
+        `/${CONFIG.VEHICLES_TABLE}?id=eq.${encodeURIComponent(id)}`,
+        { method: 'PATCH', body: patch, prefer: 'return=representation' });
+      if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+      return rows && rows[0] ? rows[0] : null;
+    },
+
+    async deleteVehicle(id) {
+      if (gwOn()) {
+        const r = await gw('lists.deleteVehicle', { id });
+        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+        return r;
+      }
+      const res = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
+        `/${CONFIG.VEHICLES_TABLE}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
       return res;
     },
@@ -381,6 +549,7 @@ const API = (() => {
   const Notifications = {
     /** هێنانی نۆتیفیکەیشنەکان (نوێترین لە سەرەتا) */
     async list() {
+      if (gwOn()) return gw('notifications.list', {});
       return request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         '/notifications?select=*&order=created_at.desc&limit=200');
     },
@@ -388,6 +557,7 @@ const API = (() => {
     /** ناردنی نۆتیفیکەیشن — action دەقی تەواوی گۆڕانکارییەکەیە */
     async send(action) {
       if (!action) return null;
+      if (gwOn()) return gw('notifications.send', { action });
       return request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         '/notifications', { method: 'POST', body: { action }, prefer: 'return=minimal' });
     },
@@ -396,6 +566,7 @@ const API = (() => {
     async removeOlderThanDays(days) {
       const n = Math.max(0, Number(days) || 0);
       if (!n) return null;
+      if (gwOn()) return gw('notifications.removeOlderThanDays', { days: n });
       const cutoff = new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
       return request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         `/notifications?created_at=lt.${encodeURIComponent(cutoff)}`, { method: 'DELETE' });
@@ -403,6 +574,7 @@ const API = (() => {
 
     /** سڕینەوەی هەموو نۆتیفیکەیشنەکان */
     async removeAll() {
+      if (gwOn()) return gw('notifications.removeAll', {});
       return request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         '/notifications?id=gte.0', { method: 'DELETE' });
     },
@@ -434,6 +606,7 @@ const API = (() => {
   const Professions = {
     /** هەموو ڕیزەکان — ناوی پیشەکان + ڕیزی کۆنفیگی دەسەڵاتەکان جیا دەکرێنەوە */
     async all() {
+      if (gwOn()) return gw('professions.all', {});
       const rows = await professionsRaw();
       return splitProfessionRows(rows);
     },
@@ -446,6 +619,7 @@ const API = (() => {
     },
 
     async insert(name) {
+      if (gwOn()) return gw('professions.insert', { name });
       const rows = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         '/professions', { method: 'POST', body: { profession: name }, prefer: 'return=representation' });
       if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
@@ -453,6 +627,7 @@ const API = (() => {
     },
 
     async remove(id) {
+      if (gwOn()) return gw('professions.remove', { id });
       const res = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         `/professions?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
@@ -461,6 +636,7 @@ const API = (() => {
 
     /** پاشەکەوتی کۆنفیگی دەسەڵاتەکان — ڕیزی marker نوێ دەکرێتەوە یان دروست دەکرێت */
     async savePerms(config) {
+      if (gwOn()) return gw('professions.savePerms', { config });
       const rows = await professionsRaw();
       const { permsRaw } = splitProfessionRows(rows);
       const val = PERMS_MARKER + JSON.stringify(config || {});
@@ -477,5 +653,108 @@ const API = (() => {
     },
   };
 
-  return { Records, Lists, Notifications, Professions };
+  /* ---------------- چوونەژوورەوە و هەژماری کەسی — بە دەروازەوە ---------------- */
+
+  /** چوونەژوورەوە لە سێرڤەر — تێپەڕەوشە لە سێرڤەر پشکنین دەکرێت و تۆکنی بۆ دەگەڕێتەوە */
+  function login(userId, pin) {
+    return gw('login', { userId, pin });
+  }
+
+  /** لیستی یوسەران بۆ شاشەی چوونەژوورەوە — بێ زانیاری هەستیار (بێ تێپەڕەوشە و تەلەفۆن) */
+  function loginOptions() {
+    return gw('loginOptions', {});
+  }
+
+  /** گۆڕینی تێپەڕەوشەی خۆی — تێپەڕەوشەی ئێستا لە سێرڤەر پشکنین دەکرێت */
+  function changeOwnPin(currentPin, newPin) {
+    return gw('users.changeOwnPin', { currentPin, newPin });
+  }
+
+  /**
+   * بارکردنی وێنەی پڕۆفایل — لە مۆدی دەروازەدا وێنەکە دەچێتە ناو GitHub repo
+   * (پەڕگەیەکی سەربەخۆ + CDN) و لە داتابەیسەکەدا تەنها ڕێڕەوەکە دەمێنێتەوە —
+   * بۆیە لیستی یوسەرەکان زۆر سووک و خێرا دەبێت. userId بەتاڵ بێت = تەنها فایلەکە بار دەکرێت
+   * (بۆ یوسەری نوێ کە هێشتا دروست نەکراوە).
+   */
+  function uploadAvatar(userId, dataUrl) {
+    if (gwOn()) return gw('users.uploadAvatar', { userId: userId || '', dataUrl });
+    // ڕێگای کۆن — dataURL ڕاستەوخۆ لە خشتەکەدا
+    if (!userId) return Promise.resolve({ avatar_url: dataUrl });
+    return Lists.updateUser(userId, { avatar_url: dataUrl });
+  }
+
+  /** گواستنەوەی هەموو وێنە کۆنەکان (dataURL) بۆ GitHub — تەنها بەڕێوەبەر */
+  function migrateAvatars() {
+    return gw('users.migrateAvatars', {});
+  }
+
+  /* ---------------- خشتەی ماڕکێتەکان (public.market_locaetion) ---------------- */
+  const Markets = {
+    async list() {
+      if (gwOn()) {
+        try {
+          const res = await gw('markets.list', {});
+          if (Array.isArray(res)) return res;
+        } catch (e) {
+          console.warn('Gateway markets.list failed, falling back to direct REST:', e);
+        }
+      }
+      // هێنانی هەموو ماڕکێتەکان (تەنانەت ئەگەر ٥,٠٠٠+ بن) بە لاپەڕەبەندی
+      const pageSize = 1000;
+      let all = [];
+      let offset = 0;
+      while (true) {
+        const rows = await request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
+          `/${CONFIG.MARKETS_TABLE || 'market_locaetion'}?select=*&order=account_code.asc&limit=${pageSize}&offset=${offset}`);
+        if (!Array.isArray(rows) || !rows.length) break;
+        all.push(...rows);
+        if (rows.length < pageSize) break;
+        offset += pageSize;
+      }
+      return all;
+    },
+
+    async insert(row) {
+      if (gwOn()) {
+        try {
+          return await gw('markets.insert', { row });
+        } catch (e) {
+          console.warn('Gateway markets.insert failed, falling back to direct REST:', e);
+        }
+      }
+      const rows = await request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
+        `/${CONFIG.MARKETS_TABLE || 'market_locaetion'}`,
+        { method: 'POST', body: row, prefer: 'return=representation' });
+      return rows && rows[0] ? rows[0] : row;
+    },
+
+    async update(accountCode, patch) {
+      if (gwOn()) {
+        try {
+          return await gw('markets.update', { account_code: accountCode, patch });
+        } catch (e) {
+          console.warn('Gateway markets.update failed, falling back to direct REST:', e);
+        }
+      }
+      const rows = await request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
+        `/${CONFIG.MARKETS_TABLE || 'market_locaetion'}?account_code=eq.${encodeURIComponent(accountCode)}`,
+        { method: 'PATCH', body: patch, prefer: 'return=representation' });
+      return rows && rows[0] ? rows[0] : patch;
+    },
+
+    async delete(accountCode) {
+      if (gwOn()) {
+        try {
+          return await gw('markets.delete', { account_code: accountCode });
+        } catch (e) {
+          console.warn('Gateway markets.delete failed, falling back to direct REST:', e);
+        }
+      }
+      return request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
+        `/${CONFIG.MARKETS_TABLE || 'market_locaetion'}?account_code=eq.${encodeURIComponent(accountCode)}`,
+        { method: 'DELETE' });
+    },
+  };
+
+  return { Records, Lists, Notifications, Professions, Markets, login, loginOptions, changeOwnPin, uploadAvatar, migrateAvatars, gatewayActive: gwOn };
 })();

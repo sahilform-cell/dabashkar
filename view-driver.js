@@ -12,6 +12,7 @@ const DriverView = (() => {
   let allTodayRecords = [];  // هەموو تۆمارەکانی ئەمڕۆ (بۆ ژماردنی ڕاستی گەشتەکانی شۆفێر)
   let lists = null;   // {users, zones}
   let isFirstRender = true;  // بۆ نیشاندانی لوک سکرینی شۆفێر لە یەکەم بار
+  let lastRenderSig = null;  // نیشانەی داتای ڕێندەرکراو — بۆ پشتگوێخستنی ڕێندەری بێگۆڕان
 
 
   const isDistributor = () => App.getUser()?.profession === CONFIG.PROFESSION_DISTRIBUTOR;
@@ -82,11 +83,48 @@ const DriverView = (() => {
   // بلەر: کۆی گشتی پیشان دەدات؛ فۆکەس: دەقە ڕەسەنەکە دەگەڕێنێتەوە بۆ دەستکاری
   const wireExprField = inp => {
     if (!inp) return;
+
+    UI.wireThousands(inp, { allowOperators: true });
+
+    // دووگمەی + لەناو خانەکە (لای چەپ) — دوای ژمارە دەرئەکەوێت و + زیاد دەکات
+    const wrap = document.createElement('div');
+    wrap.className = 'expr-wrap';
+    inp.parentNode.insertBefore(wrap, inp);
+    wrap.appendChild(inp);
+    inp.classList.add('expr-input');
+    const plusBtn = document.createElement('button');
+    plusBtn.type = 'button';
+    plusBtn.className = 'expr-plus-btn';
+    plusBtn.tabIndex = -1;
+    plusBtn.setAttribute('aria-label', 'کۆکردنەوە');
+    plusBtn.textContent = '+';
+    wrap.appendChild(plusBtn);
+    const syncPlus = () => {
+      const v = inp.value.trim();
+      const show = !inp.readOnly && !inp.disabled && /[0-9٠-٩۰-۹]$/.test(v);
+      plusBtn.classList.toggle('show', show);
+    };
+    // mousedown: با خانەکە فۆکەسی نەچێت (کیبۆرد دانەخرێت)
+    plusBtn.addEventListener('mousedown', e => e.preventDefault());
+    plusBtn.addEventListener('click', () => {
+      if (inp.dataset.raw) { inp.value = inp.dataset.raw; delete inp.dataset.raw; }
+      const v = inp.value.trim();
+      if (!/[0-9٠-٩۰-۹]$/.test(v)) return;
+      inp.value = v + '+';
+      inp.focus();
+      try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (_) {}
+      syncPlus();
+    });
+    inp.addEventListener('input', syncPlus);
+    inp.addEventListener('focus', () => setTimeout(syncPlus, 0));
+    inp.addEventListener('blur', () => setTimeout(syncPlus, 0));
+    syncPlus();
+
     inp.addEventListener('blur', () => {
       const raw = inp.value.trim();
       if (UI.hasOperator(raw)) {
         inp.dataset.raw = raw;
-        inp.value = String(UI.cleanInt(raw));
+        inp.value = UI.fmtNum(UI.cleanInt(raw));
       } else {
         delete inp.dataset.raw;
       }
@@ -102,7 +140,10 @@ const DriverView = (() => {
   };
   // ئەگەر ستوونە ژمارەییەکان لە سەپابەیس کرابنە text، دەقەکە دەنێرین؛ ئەگینا کۆی گشتی
   const numericColsAreText = () => (records || []).some(r => typeof r.cargo_weight === 'string');
-  const sendNumeric = raw => numericColsAreText() ? raw : UI.cleanInt(raw);
+  const sendNumeric = raw => {
+    if (numericColsAreText() && UI.hasOperator(raw)) return raw;
+    return UI.cleanInt(raw);
+  };
 
   const createNameGroup = (opts = {}) => {
     const title = opts.title || '';
@@ -110,6 +151,7 @@ const DriverView = (() => {
     const max = opts.max || 4;
     const lockedFirst = !!opts.lockedFirst;
     const lockedValue = opts.lockedValue || '';
+    const lockedAll = !!opts.lockedAll; // قفڵی تەواوی گرووپ — بەپێی ڕێکخستنی قفڵی خانەکان
     const addTitle = opts.addTitle || 'زیادکردنی خانەی تر';
 
     const el = document.createElement('div');
@@ -123,7 +165,7 @@ const DriverView = (() => {
     addBtn.textContent = '⊞';
     addBtn.title = addTitle;
 
-    const refreshAdd = () => { addBtn.style.display = rows.length >= max ? 'none' : ''; };
+    const refreshAdd = () => { addBtn.style.display = (rows.length >= max || lockedAll) ? 'none' : ''; };
 
     const makeRow = (value, isFirst) => {
       const row = document.createElement('div');
@@ -147,13 +189,13 @@ const DriverView = (() => {
       rows.push(rowObj);
       el.appendChild(row);
 
-      if (isFirst && lockedFirst) {
+      if (lockedAll || (isFirst && lockedFirst)) {
         inp.readOnly = true;
-        inp.value = lockedValue;
+        if (isFirst && lockedFirst) inp.value = lockedValue;
         inp.style.background = 'var(--bg-2,#f5f5f5)';
         inp.style.color = 'var(--text-muted,#888)';
         inp.style.cursor = 'not-allowed';
-        btns.appendChild(addBtn);
+        if (isFirst) btns.appendChild(addBtn);
       } else {
         UI.autocomplete(inp, items);
         if (isFirst) {
@@ -196,6 +238,18 @@ const DriverView = (() => {
       clearInvalid: () => rows.forEach(r => r.inp.classList.remove('invalid')),
       hasFirst: () => !!(rows[0] && rows[0].inp.value.trim()),
       markFirstInvalid: () => { if (rows[0]) rows[0].inp.classList.add('invalid'); },
+      // دانانی بەهاکان — ڕیزە زیادەکان دەسڕدرێنەوە و نوێیان دروست دەکرێن (بۆ پڕکردنەوەی خۆکار).
+      // ڕیزی قفڵکراو (ناوی خۆی یوسەر) ناگۆڕدرێت.
+      setValues: (vals = []) => {
+        while (rows.length > 1) {
+          const r = rows.pop();
+          r.row.remove();
+        }
+        if (rows[0] && !rows[0].inp.readOnly) rows[0].inp.value = vals[0] || '';
+        for (let i = 1; i < vals.length && i < max; i++) makeRow(vals[i] || '', false);
+        refreshAdd();
+        rows.forEach(r => r.inp.classList.remove('invalid'));
+      },
       // ڕێگری: هەموو بەها نابەتاڵەکان دەبێت لە لیستی ڕێگەپێدراودا بن (پاشگر دوو/سێ پشتگوێ دەخرێت)
       validateAllowed: (allowedNames) => {
         if (!allowedNames || !allowedNames.length) return true;
@@ -262,28 +316,35 @@ const DriverView = (() => {
       lists = ls;
 
       // سڕینەوەی دەرچوونی دووبارە لە هەمان ڕۆژ لە مەودای <= ١٠ خولەک (جگە لە سایەق دوو)
-      const toDeleteIds = new Set();
-      const rows = allToday || [];
-      for (let i = 0; i < rows.length; i++) {
-        const r1 = rows[i];
-        if (toDeleteIds.has(r1.id)) continue;
-        for (let j = i + 1; j < rows.length; j++) {
-          const r2 = rows[j];
-          if (toDeleteIds.has(r2.id)) continue;
-          if (areDuplicateDepartures(r1, r2)) {
-            const r1Progress = (r1.arrival_time ? 4 : (r1.out_zone_time ? 3 : (r1.in_zone_time ? 2 : 1)));
-            const r2Progress = (r2.arrival_time ? 4 : (r2.out_zone_time ? 3 : (r2.in_zone_time ? 2 : 1)));
-            const dupToRemove = r2Progress > r1Progress ? r1 : r2;
-            toDeleteIds.add(dupToRemove.id);
-            API.Records.remove(dupToRemove.id).catch(e => console.warn('هەڵە لە سڕینەوەی تۆماری دووبارە:', e));
+      // تەنها بۆ ئەوانەی دەسەڵاتی سڕینەوەیان هەیە — لە مۆدی دەروازەدا سێرڤەر ڕێگە نادات بە سڕینەوەی داتای کەسانی تر
+      let cleanedToday;
+      if (Perms.canAct(App.getUser(), 'rep_delete')) {
+        const toDeleteIds = new Set();
+        const rows = allToday || [];
+        for (let i = 0; i < rows.length; i++) {
+          const r1 = rows[i];
+          if (toDeleteIds.has(r1.id)) continue;
+          for (let j = i + 1; j < rows.length; j++) {
+            const r2 = rows[j];
+            if (toDeleteIds.has(r2.id)) continue;
+            if (areDuplicateDepartures(r1, r2)) {
+              const r1Progress = (r1.arrival_time ? 4 : (r1.out_zone_time ? 3 : (r1.in_zone_time ? 2 : 1)));
+              const r2Progress = (r2.arrival_time ? 4 : (r2.out_zone_time ? 3 : (r2.in_zone_time ? 2 : 1)));
+              const dupToRemove = r2Progress > r1Progress ? r1 : r2;
+              toDeleteIds.add(dupToRemove.id);
+              API.Records.remove(dupToRemove.id).catch(e => console.warn('هەڵە لە سڕینەوەی تۆماری دووبارە:', e));
+            }
           }
         }
-      }
 
-      const cleanedToday = rows.filter(r => !toDeleteIds.has(r.id));
-      allTodayRecords = cleanedToday;
-      if (toDeleteIds.size > 0 && !silent) {
-        UI.toast('دەرچوونی دووبارەی هەمان گەشت لە سیستەمدا بە خۆکاری سڕدرایەوە ✓', 'info', 4000);
+        cleanedToday = rows.filter(r => !toDeleteIds.has(r.id));
+        allTodayRecords = cleanedToday;
+        if (toDeleteIds.size > 0 && !silent) {
+          UI.toast('دەرچوونی دووبارەی هەمان گەشت لە سیستەمدا بە خۆکاری سڕدرایەوە ✓', 'info', 4000);
+        }
+      } else {
+        cleanedToday = (allToday || []).slice();
+        allTodayRecords = cleanedToday;
       }
 
       // هاوتاکردنی پێشاندانی دەرچوون بۆ هەردوو پیشەی سایەق و دابەشکار —
@@ -293,6 +354,10 @@ const DriverView = (() => {
       } else {
         records = cleanedToday.filter(r => UI.recMatchesUser(r, 'driver', u));
       }
+      // ڕیفرێشی خۆکار — ئەگەر داتاکە نەگۆڕابێت دووبارە ڕێندەر مەکەرەوە (خێرایی + بێ لەرینەوە)
+      const sig = JSON.stringify([records, allTodayRecords]);
+      if (silent && sig === lastRenderSig) { checkPendingLockAction(); return; }
+      lastRenderSig = sig;
       renderAll();
       checkPendingLockAction();
     } catch (err) {
@@ -392,7 +457,7 @@ const DriverView = (() => {
         <div class="active-time-edit-bar">
           ${(() => {
             const u2 = App.getUser();
-            const locked = !isSupervisor() && !Perms.canAct(u2, 'act_bypass_field_lock') && Perms.isRecordLocked(active);
+            const locked = !isSupervisor() && !Perms.canAct(u2, 'act_bypass_field_lock') && Perms.isRecordLocked(active, null, u2);
             return `<button type="button" class="btn-edit-times btn-edit-big" id="active-edit-times-btn">${locked ? '🔒' : '✏️'} دەستکاری داتا${locked ? ' (قفڵکراوە)' : ''}</button>`;
           })()}
         </div>` : ''}
@@ -407,7 +472,7 @@ const DriverView = (() => {
           <div class="detail"><span>وەسڵ</span><b>${UI.fmtNum(active.receipt_number)}${markHtml(active, 'receipt_number')}</b></div>
           <div class="detail"><span>پارەی هێنراوە</span><b class="money-val">${UI.fmtMoney(active.collected_money)}${markHtml(active, 'collected_money')}</b></div>
         </div>
-        ${active.arrival_time && !(Number(active.collected_money || 0) > 0) && canMoney ? `
+        ${active.out_zone_time && !(Number(active.collected_money || 0) > 0) && canMoney ? `
         <button class="money-row" id="money-btn" type="button">
           <span class="money-lbl">💰 پارەی هێنراوە</span>
           <b class="money-val">—</b>
@@ -463,7 +528,7 @@ const DriverView = (() => {
             <div style="display:flex;align-items:center;gap:6px">
               ${canEditData ? (() => {
                 const uHist = App.getUser();
-                const lockedHist = !isSupervisor() && !Perms.canAct(uHist, 'act_bypass_field_lock') && Perms.isRecordLocked(r);
+                const lockedHist = !isSupervisor() && !Perms.canAct(uHist, 'act_bypass_field_lock') && Perms.isRecordLocked(r, null, uHist);
                 return `<button type="button" class="btn-edit-times btn-edit-big btn-hist-edit" data-id="${r.id}" title="دەستکاریکردنی داتا و پارەی ئەم بارە">${lockedHist ? '🔒' : '✏️'} دەستکاری داتا${lockedHist ? ' (قفڵکراوە)' : ''}</button>`;
               })() : ''}
             </div>
@@ -555,7 +620,8 @@ const DriverView = (() => {
     const icon = { in_zone: '📍', out_zone: '🚏', arrival: '🏁' }[type];
 
     const actBtn = container ? $('#act-btn', container) : null;
-    if (actBtn) UI.btnLoading(actBtn, true, 'تۆمار دەکرێت...');
+    // لە شوێنی لۆدینگ — ئەنیمەیشنی تایبەتی کردارەکە (ئەگەر لە ڕێکخستنەکان چالاک بێت)
+    if (actBtn) UI.btnBusy(actBtn, type, true, 'تۆمار دەکرێت...');
     try {
       const patch = { [field]: UI.nowTime() };
       // کاتی کارکردن — لە کاتی گەشتنەوەدا حیساب و کۆگا دەکرێت لە average_time
@@ -571,7 +637,7 @@ const DriverView = (() => {
     } catch (err) {
       UI.toast('هەڵە لە تۆمارکردن: ' + err.message, 'error', 4200);
     } finally {
-      if (actBtn) UI.btnLoading(actBtn, false);
+      if (actBtn) UI.btnBusy(actBtn, type, false);
     }
   }
 
@@ -628,6 +694,10 @@ const DriverView = (() => {
       // تەنها یەک دووگمە لەناو کارتی نۆتیفیکەیشن — بێ هیچ داتای زیادە
       const title = `${stageIcon} گەیاندن`;
 
+      // وێنە گەورەکە — ئەڤاتاری یوسەرەکەی ئەنجامدەری کردارەکە (لە جیاتی ئایکۆنی ئەپ)
+      const me = App.getUser();
+      const userIcon = (me && me.avatar_url) ? me.avatar_url : './icon-192.png';
+
       const existing = await reg.getNotifications({ tag: 'active-trip-lockscreen' });
       const current = existing[0];
       if (current && current.data && current.data.recordId === active.id && current.data.stage === nextStage) {
@@ -635,7 +705,7 @@ const DriverView = (() => {
       }
 
       await reg.showNotification(title, {
-        icon: './icon-192.png',
+        icon: userIcon,
         badge: './icon-192.png',
         tag: 'active-trip-lockscreen',
         renotify: true,
@@ -688,14 +758,11 @@ const DriverView = (() => {
     const u = App.getUser();
     const distrib = isDistributor();
 
-    const distributors = (lists?.users || []).filter(x => x.profession === CONFIG.PROFESSION_DISTRIBUTOR).map(x => ({ label: x.username }));
-    const drivers     = (lists?.users || []).filter(x => x.profession === CONFIG.PROFESSION_DRIVER || x.profession === CONFIG.PROFESSION_ASSISTANT).map(x => ({ label: x.username }));
-    const delegates   = (lists?.users || []).filter(x => x.profession === CONFIG.PROFESSION_DELEGATE).map(x => ({ label: x.username }));
-    const zones       = (lists?.zones || []).map(z => ({ label: z.name }));
-    const vehicles    = (lists?.vehicles || []).map(v => {
-      const val = v.vehicle_number || v.plate_number || v.number || v.name || v.vehicle || v.plate || Object.values(v)[1] || Object.values(v)[0];
-      return { label: String(val).trim() };
-    }).filter(v => v.label && v.label !== '[object Object]');
+    const distributors = Store.visible('users', lists?.users).filter(x => x.profession === CONFIG.PROFESSION_DISTRIBUTOR).map(x => ({ label: x.username }));
+    const drivers     = Store.visible('users', lists?.users).filter(x => x.profession === CONFIG.PROFESSION_DRIVER || x.profession === CONFIG.PROFESSION_ASSISTANT).map(x => ({ label: x.username }));
+    const delegates   = Store.visible('users', lists?.users).filter(x => x.profession === CONFIG.PROFESSION_DELEGATE).map(x => ({ label: x.username }));
+    const zones       = Store.visible('zones', lists?.zones).map(z => ({ label: z.name }));
+    const vehicles    = Store.visible('vehicles', lists?.vehicles).map(v => ({ label: Store.vehicleLabel(v) })).filter(v => v.label);
 
     const count = records.length;
     const cargoLabel = CONFIG.CARGO_LABELS[count] || 'باری نوێ';
@@ -760,6 +827,63 @@ const DriverView = (() => {
 
     UI.autocomplete($('#f-vehicle', body), () => vehicles);
     ['#f-weight', '#f-pieces', '#f-receipt'].forEach(id => wireExprField($(id, body)));
+
+    /* — ئۆپشنی «حەفتەی ڕابردوو» — پڕکردنەوەی خۆکاری خانەکان لە داتای هەمان ڕۆژی حەفتەی ڕابردوو.
+     * دەستدان لە هەر خانەیەکی پڕکراوە بەتاڵی دەکاتەوە بۆ ئەوەی یوسەر بە ئازادی بنووسێت. */
+    if (Store.getSettings().lastWeekFill !== false) {
+      const armTouchClearGroup = group => {
+        const inputs = group.inputs();
+        const clear = () => {
+          group.setValues([]);
+          inputs.forEach(i => {
+            i.removeEventListener('pointerdown', clear);
+            i.removeEventListener('focus', clear);
+          });
+        };
+        inputs.forEach(i => {
+          i.addEventListener('pointerdown', clear);
+          i.addEventListener('focus', clear);
+        });
+      };
+      const armTouchClearInput = inp => {
+        if (!inp) return;
+        const clear = () => {
+          inp.value = '';
+          inp.removeEventListener('pointerdown', clear);
+          inp.removeEventListener('focus', clear);
+        };
+        inp.addEventListener('pointerdown', clear);
+        inp.addEventListener('focus', clear);
+      };
+      (async () => {
+        try {
+          const lwRows = (await API.Records.list({ 'record_date': `eq.${UI.daysAgoStr(7)}` })) || [];
+          if (!lwRows.length || !document.body.contains(body)) return; // داتا نییە یان مۆدالەکە داخراوە
+          // ئەگەر هەمان ژمارەی باری ئەمڕۆ لەو ڕۆژەدا هەبوو — ئەوە هەڵبژێرە، ئەگینا دوایینیان
+          const rec = lwRows.find(r => cargoIndex(r) === records.length) || lwRows[0];
+          const splitNames = (v, stripSuffix) => String(v || '')
+            .split(/\s+و\s+/)
+            .map(p => stripSuffix ? stripCargoSuffix(stripEditMark(p)) : stripEditMark(p).trim())
+            .filter(Boolean);
+          [
+            { group: driverGroup,   vals: splitNames(rec.driver, true) },
+            { group: distribGroup,  vals: splitNames(rec.distributor, true) },
+            { group: delegateGroup, vals: splitNames(rec.delegate, false) },
+            { group: zoneGroup,     vals: splitNames(rec.zone, false) },
+          ].forEach(f => {
+            if (!f.vals.length) return;
+            if (f.group.getValues().length) return; // یوسەر پێش ئێستا شتێکی نووسیوە — دەست ناپێوە
+            f.group.setValues(f.vals);
+            armTouchClearGroup(f.group);
+          });
+          const veh = $('#f-vehicle', body);
+          if (rec.vehicle && veh && !veh.value.trim()) {
+            veh.value = rec.vehicle;
+            armTouchClearInput(veh);
+          }
+        } catch (_) { /* هەڵەی هێنان — فۆڕمەکە بەتاڵ دەمێنێتەوە */ }
+      })();
+    }
 
     const { close } = UI.openModal({
       title: `🚚 تۆمارکردنی دەرچوون — ${cargoLabel}`,
@@ -843,7 +967,7 @@ const DriverView = (() => {
             // پاشگر تەنها «دوو» ـە (بۆ باری دووەم و هەر بارێکی دواتر) و بۆ سایەق و دابەشکار هەردووکیان
             const suffix = cargoSuffixFor(finalCargoIndex);
 
-            UI.btnLoading(submitBtn, true, 'تۆمار دەکرێت...');
+            UI.btnBusy(submitBtn, 'exit', true, 'تۆمار دەکرێت...');
             try {
               await API.Records.insert({
                 driver:       finalDriver + suffix,
@@ -868,7 +992,7 @@ const DriverView = (() => {
             } catch (err) {
               UI.toast('هەڵە لە تۆمارکردنی دەرچوون: ' + err.message, 'error', 4200);
             } finally {
-              UI.btnLoading(submitBtn, false);
+              UI.btnBusy(submitBtn, 'exit', false);
             }
           }
         },
@@ -879,13 +1003,24 @@ const DriverView = (() => {
   /* ---------------- مۆدالی پارەی هێنراوە — دوگمەی جیاوە، دوای تۆمارکردن ون دەبێت ---------------- */
 
   function openMoneyModal(active) {
+    // قفڵی خانەی پارەی هێنراوە — تۆمارکردنی یەکجار: کاتێک بەتاڵە دەکرێت جارێک بنووسرێت،
+    // بەڵام ئەگەر ژمارەیەکی تێدایە و قفڵکراوە، هێڵ نادرێت بگۆڕدرێت
+    const uMoney = App.getUser();
+    const moneyAlreadySet = Number(active.collected_money || 0) > 0;
+    if (!isSupervisor() && moneyAlreadySet && !Perms.canAct(uMoney, 'act_bypass_field_lock') && Perms.isRecordLocked(active, 'collected_money', uMoney)) {
+      UI.toast('🔒 خانەی «پارەی هێنراوە» قفڵکراوە — ناتوانیت بیگۆڕیت', 'warning', 5000);
+      return;
+    }
     const body = document.createElement('div');
     body.innerHTML = `
       <p class="confirm-msg">بڕی پارەی کۆمکراوی ئەم بارە بنووسە (بە دیناری عێراقی):</p>
+      ${!moneyAlreadySet ? '<p class="hint" style="margin:0 0 6px">⚠️ تێبینی: ئەمە تۆمارکردنی یەکجارە — پاش پاشەکەوتکردن، خانەکە قفڵ دەبێت و چیتر ناگۆڕدرێت.</p>' : ''}
       <div class="field">
         <label>پارەی هێنراوە</label>
-        <input id="f-money" type="number" min="0" step="1" inputmode="numeric" value="" placeholder="بڕی پارە بنووسە (د.ع)">
+        <input id="f-money" type="text" inputmode="numeric" value="${moneyAlreadySet ? UI.fmtNum(active.collected_money) : ''}" placeholder="بڕی پارە بنووسە (د.ع)">
       </div>`;
+
+    UI.wireThousands($('#f-money', body), { allowOperators: true });
 
     const { close } = UI.openModal({
       title: '💰 پارەی هێنراوە',
@@ -905,7 +1040,11 @@ const DriverView = (() => {
               UI.toast('تکایە بڕێکی ژمارەیی دروست بنووسە', 'warning');
               return;
             }
-            UI.btnLoading(saveBtn, true, 'پاشەکەوت دەکرێت...');
+            if (money > 99999999) {
+              UI.toast('بڕی پارەی هێنراوە ناتوانێت لە ٩٩،٩٩٩،٩٩٩ زیاتر بێت', 'warning');
+              return;
+            }
+            UI.btnBusy(saveBtn, 'money', true, 'پاشەکەوت دەکرێت...');
             try {
               await API.Records.update(active.id, { collected_money: money });
               UI.toast('پارەی هێنراوە تۆمار کرا ✓', 'success');
@@ -914,7 +1053,7 @@ const DriverView = (() => {
             } catch (err) {
               UI.toast('هەڵە لە تۆمارکردنی پارە: ' + err.message, 'error', 4200);
             } finally {
-              UI.btnLoading(saveBtn, false);
+              UI.btnBusy(saveBtn, 'money', false);
             }
           }
         },
@@ -930,13 +1069,16 @@ const DriverView = (() => {
     const u = App.getUser();
     const sup = isSupervisor();
 
-    // پشکنینی قفڵبوونی خانەکان — ئەگەر قفڵکراوە و یوسەر مۆڵەتی تێپەڕاندنی نەبوو
-    if (!sup && !Perms.canAct(u, 'act_bypass_field_lock') && Perms.isRecordLocked(rec)) {
+    // پشکنینی قفڵی خانەکان — خانەکان دانە بە دانە قفڵ دەبن بەپێی ڕێکخستن
+    // تەنها کاتێک مۆدال دەخرێتەوە کە هەموو خانەکانی فۆڕم قفڵکراون
+    const canBypassLock = sup || Perms.canAct(u, 'act_bypass_field_lock');
+    const lockedFields = canBypassLock ? [] : Perms.lockedFieldsOf(rec, u);
+    if (!canBypassLock && Perms.FIELD_LOCK_FIELDS.every(f => lockedFields.includes(f.key))) {
       const flc = (Store.getPermsConfig() || {}).fieldLock || {};
       const reason = flc.type === 'timed'
         ? `دوای ${UI.esc(String(flc.minutes || 0))} خولەک لە تۆمارکردنەوە`
         : 'دوای تۆمارکردن';
-      UI.toast(`🔒 ئەم تۆمارە قفڵکراوە (${reason}) — چیتر ناتوانیت داتاکانی دەستکاری بکەیت`, 'warning', 5000);
+      UI.toast(`🔒 هەموو خانەکانی ئەم تۆمارە قفڵکراون (${reason}) — چیتر ناتوانیت داتاکانی دەستکاری بکەیت`, 'warning', 5000);
       return;
     }
 
@@ -951,14 +1093,11 @@ const DriverView = (() => {
 
     const distrib = isDistributor();
     const listsNow = lists || { users: [], zones: [], vehicles: [] };
-    const distributors = (listsNow.users || []).filter(x => x.profession === CONFIG.PROFESSION_DISTRIBUTOR).map(x => ({ label: x.username }));
-    const driversList  = (listsNow.users || []).filter(x => x.profession === CONFIG.PROFESSION_DRIVER || x.profession === CONFIG.PROFESSION_ASSISTANT).map(x => ({ label: x.username }));
-    const delegates    = (listsNow.users || []).filter(x => x.profession === CONFIG.PROFESSION_DELEGATE).map(x => ({ label: x.username }));
-    const zones        = (listsNow.zones || []).map(z => ({ label: z.name }));
-    const vehicles     = (listsNow.vehicles || []).map(v => {
-      const val = v.vehicle_number || v.plate_number || v.number || v.name || v.vehicle || v.plate || Object.values(v)[1] || Object.values(v)[0];
-      return { label: String(val).trim() };
-    }).filter(v => v.label && v.label !== '[object Object]');
+    const distributors = Store.visible('users', listsNow.users).filter(x => x.profession === CONFIG.PROFESSION_DISTRIBUTOR).map(x => ({ label: x.username }));
+    const driversList  = Store.visible('users', listsNow.users).filter(x => x.profession === CONFIG.PROFESSION_DRIVER || x.profession === CONFIG.PROFESSION_ASSISTANT).map(x => ({ label: x.username }));
+    const delegates    = Store.visible('users', listsNow.users).filter(x => x.profession === CONFIG.PROFESSION_DELEGATE).map(x => ({ label: x.username }));
+    const zones        = Store.visible('zones', listsNow.zones).map(z => ({ label: z.name }));
+    const vehicles     = Store.visible('vehicles', listsNow.vehicles).map(v => ({ label: Store.vehicleLabel(v) })).filter(v => v.label);
 
     // دیاریکردنی خانەی ناوی خۆی — قفڵ دەکرێت وەک فۆڕمی تۆمارکردنی دەرچوون (تەنها بۆ شۆفێر/دابەشکار، نەک بەڕێوەبەر)
     // بە ئایدی usersv2 ئەگەر تۆمارەکە هەیبێت، ئەگینا بە ناو
@@ -1008,11 +1147,11 @@ const DriverView = (() => {
           <div class="field"><label>کاتی دەرچوون *</label><input id="f-time" type="time" value="${rec.record_time || ''}"></div>
         </div>
         <div class="field-row">
-          <div class="field"><label>کێشی بار (کگم) *</label><input id="f-weight" type="text" inputmode="numeric" value="${UI.esc(rec.cargo_weight ?? '')}"></div>
-          <div class="field"><label>ژمارەی پارچەکان *</label><input id="f-pieces" type="text" inputmode="numeric" value="${UI.esc(rec.pieces_count ?? '')}"></div>
+          <div class="field"><label>کێشی بار (کگم) *</label><input id="f-weight" type="text" inputmode="numeric" value="${UI.esc(rec.cargo_weight ? (UI.hasOperator(rec.cargo_weight) ? rec.cargo_weight : UI.fmtNum(rec.cargo_weight)) : '')}"></div>
+          <div class="field"><label>ژمارەی پارچەکان *</label><input id="f-pieces" type="text" inputmode="numeric" value="${UI.esc(rec.pieces_count ? (UI.hasOperator(rec.pieces_count) ? rec.pieces_count : UI.fmtNum(rec.pieces_count)) : '')}"></div>
         </div>
-        <div class="field"><label>ژمارەی وەسڵ *</label><input id="f-receipt" type="text" inputmode="numeric" value="${UI.esc(rec.receipt_number ?? '')}"></div>
-        <div class="field"><label>💰 پارەی هێنراوە (د.ع)</label><input id="f-money" type="number" min="0" step="1" inputmode="numeric" value="${Number(rec.collected_money || 0) > 0 ? UI.cleanInt(rec.collected_money) : ''}" placeholder="بەتاڵ = تۆمار نەکراوە"></div>
+        <div class="field"><label>ژمارەی وەسڵ *</label><input id="f-receipt" type="text" inputmode="numeric" value="${UI.esc(rec.receipt_number ? (UI.hasOperator(rec.receipt_number) ? rec.receipt_number : UI.fmtNum(rec.receipt_number)) : '')}"></div>
+        <div class="field"><label>💰 پارەی هێنراوە (د.ع)</label><input id="f-money" type="text" inputmode="numeric" value="${Number(rec.collected_money || 0) > 0 ? UI.fmtNum(rec.collected_money) : ''}" placeholder="بەتاڵ = تۆمار نەکراوە"></div>
 
         <div class="date-range-compact" style="margin-top:10px">
           <div class="field compact-field"><label>📍 کاتی ناو زۆن</label><input type="time" id="f-in-zone" value="${rec.in_zone_time || ''}"></div>
@@ -1033,6 +1172,7 @@ const DriverView = (() => {
       initial: driverParts,
       lockedFirst: selfField === 'driver',
       lockedValue: selfField === 'driver' ? (driverParts[0] || u?.username || '') : '',
+      lockedAll: lockedFields.includes('driver'),
       addTitle: 'زیادکردنی سایەقی تر',
     });
     const distribGroup = createNameGroup({
@@ -1042,6 +1182,7 @@ const DriverView = (() => {
       initial: distParts,
       lockedFirst: selfField === 'distributor',
       lockedValue: selfField === 'distributor' ? (distParts[0] || u?.username || '') : '',
+      lockedAll: lockedFields.includes('distributor'),
       addTitle: 'زیادکردنی دابەشکاری تر',
     });
     const delegateGroup = createNameGroup({
@@ -1051,6 +1192,7 @@ const DriverView = (() => {
       initial: delParts,
       lockedFirst: selfField === 'delegate',
       lockedValue: selfField === 'delegate' ? (delParts[0] || u?.username || '') : '',
+      lockedAll: lockedFields.includes('delegate'),
       addTitle: 'زیادکردنی مەندوبی تر',
     });
     const zoneGroup = createNameGroup({
@@ -1058,6 +1200,7 @@ const DriverView = (() => {
       items: () => zones,
       max: 4,
       initial: zoneParts,
+      lockedAll: lockedFields.includes('zone'),
       addTitle: 'زیادکردنی زۆنی تر',
     });
 
@@ -1066,8 +1209,27 @@ const DriverView = (() => {
     $('#grp-delegate', body).appendChild(delegateGroup.el);
     $('#grp-zone', body).appendChild(zoneGroup.el);
 
-    UI.autocomplete($('#f-vehicle', body), () => vehicles);
+    // قفڵکردنی خانە ساکارەکان — تەنها ئەوانەی لە ڕێکخستنی قفڵدا هەڵبژێردران
+    const lockSimpleField = (el, key) => {
+      if (!el || !lockedFields.includes(key)) return;
+      el.readOnly = true;
+      el.style.background = 'var(--bg-2,#f5f5f5)';
+      el.style.color = 'var(--text-muted,#888)';
+      el.style.cursor = 'not-allowed';
+    };
+    lockSimpleField($('#f-vehicle', body), 'vehicle');
+    lockSimpleField($('#f-time', body), 'record_time');
+    lockSimpleField($('#f-weight', body), 'cargo_weight');
+    lockSimpleField($('#f-pieces', body), 'pieces_count');
+    lockSimpleField($('#f-receipt', body), 'receipt_number');
+    lockSimpleField($('#f-money', body), 'collected_money');
+    lockSimpleField($('#f-in-zone', body), 'in_zone_time');
+    lockSimpleField($('#f-out-zone', body), 'out_zone_time');
+    lockSimpleField($('#f-arrival', body), 'arrival_time');
+
+    if (!lockedFields.includes('vehicle')) UI.autocomplete($('#f-vehicle', body), () => vehicles);
     ['#f-weight', '#f-pieces', '#f-receipt'].forEach(id => wireExprField($(id, body)));
+    UI.wireThousands($('#f-money', body), { allowOperators: true });
 
     const { close } = UI.openModal({
       title: sup ? '✏️ دەستکاریکردنی داتا' : '✏️ دەستکاریکردنی داتای ئەمڕۆ',
@@ -1091,27 +1253,35 @@ const DriverView = (() => {
             const delegateVals = delegateGroup.getValues();
             const zoneVals     = zoneGroup.getValues();
 
-            if (!driverVals.length)   driverGroup.markFirstInvalid();
-            if (!distribVals.length)  distribGroup.markFirstInvalid();
-            if (!delegateVals.length) delegateGroup.markFirstInvalid();
-            if (!zoneVals.length)     zoneGroup.markFirstInvalid();
+            if (!driverVals.length && !lockedFields.includes('driver'))       driverGroup.markFirstInvalid();
+            if (!distribVals.length && !lockedFields.includes('distributor')) distribGroup.markFirstInvalid();
+            if (!delegateVals.length && !lockedFields.includes('delegate'))   delegateGroup.markFirstInvalid();
+            if (!zoneVals.length && !lockedFields.includes('zone'))           zoneGroup.markFirstInvalid();
 
             const invalid = [];
             const vehicle = val('#f-vehicle');
-            if (!vehicle) invalid.push('#f-vehicle');
+            if (!vehicle && !lockedFields.includes('vehicle')) invalid.push('#f-vehicle');
 
             const weightRaw  = exprValue($('#f-weight', body));
             const piecesRaw  = exprValue($('#f-pieces', body));
             const receiptRaw = exprValue($('#f-receipt', body));
-            if (weightRaw === '' || UI.cleanInt(weightRaw) < 0) invalid.push('#f-weight');
-            if (piecesRaw === '' || UI.cleanInt(piecesRaw) < 0) invalid.push('#f-pieces');
-            if (receiptRaw === '' || UI.cleanInt(receiptRaw) < 0) invalid.push('#f-receipt');
+            if (!lockedFields.includes('cargo_weight') && (weightRaw === '' || UI.cleanInt(weightRaw) < 0)) invalid.push('#f-weight');
+            if (!lockedFields.includes('pieces_count') && (piecesRaw === '' || UI.cleanInt(piecesRaw) < 0)) invalid.push('#f-pieces');
+            if (!lockedFields.includes('receipt_number') && (receiptRaw === '' || UI.cleanInt(receiptRaw) < 0)) invalid.push('#f-receipt');
 
             // پارەی هێنراوە — بەتاڵ واتە ٠
             const moneyRaw = $('#f-money', body).value.trim();
             const money = moneyRaw === '' ? 0 : UI.cleanInt(moneyRaw);
+            if (money > 99999999) {
+              $('#f-money', body)?.classList.add('invalid');
+              UI.toast('بڕی پارەی هێنراوە ناتوانێت لە ٩٩،٩٩٩،٩٩٩ زیاتر بێت', 'warning');
+              return;
+            }
 
-            const missingName = !driverVals.length || !distribVals.length || !delegateVals.length || !zoneVals.length;
+            const missingName = (!driverVals.length && !lockedFields.includes('driver'))
+              || (!distribVals.length && !lockedFields.includes('distributor'))
+              || (!delegateVals.length && !lockedFields.includes('delegate'))
+              || (!zoneVals.length && !lockedFields.includes('zone'));
             if (invalid.length || missingName) {
               invalid.forEach(id => $(id, body)?.classList.add('invalid'));
               UI.toast('تکایە خانە ناوی و ژمارەییەکان بە دروستی پڕ بکەرەوە', 'warning');
@@ -1145,6 +1315,9 @@ const DriverView = (() => {
             // کاتی کارکردن — دووبارە حیساب دەکرێت لەگەڵ کاتی دەستپێک (بۆ هەر ڕۆژێک) و کۆگا دەکرێت
             const wtStart = Store.getBaseTime() || patch.record_time || rec.record_time;
             patch.average_time = patch.arrival_time ? UI.durationToHMM(UI.durationMinutes(wtStart, patch.arrival_time)) : null;
+
+            // خانە قفڵکراوەکان لە پاشەکەوتکردن دەردەبرێن — بەهای کۆنیان دەمێنێتەوە
+            lockedFields.forEach(k => delete patch[k]);
 
             UI.btnLoading(saveBtn, true, 'پاشەکەوت دەکرێت...');
             try {

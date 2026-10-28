@@ -16,25 +16,59 @@ const App = (() => {
   const ICONS = {
     truck: UI.icon('truck', 22),
     chart: UI.icon('chart', 22),
+    target: UI.icon('target', 22),
+    markets: UI.icon('market', 22),
     shield: UI.icon('shield', 22),
     gear: UI.icon('gear', 22),
     phone: UI.icon('phone', 22),
     badge: UI.icon('badge', 22),
   };
 
+  // view-target.js ئەگەر لە index.html نەبێت، خۆکار بار دەکرێت
+  function withTargetView(fn) {
+    if (typeof TargetView !== 'undefined') return fn();
+    const sc = document.createElement('script');
+    sc.src = 'view-target.js';
+    sc.onload = () => fn();
+    sc.onerror = () => UI.toast('view-target.js بار نەبوو', 'error');
+    document.head.appendChild(sc);
+  }
+
+  // view-markets.js ئەگەر لە index.html نەبێت، خۆکار بار دەکرێت
+  function withMarketsView(fn) {
+    if (typeof MarketsView !== 'undefined') return fn();
+    const sc = document.createElement('script');
+    sc.src = 'view-markets.js';
+    sc.onload = () => fn();
+    sc.onerror = () => UI.toast('view-markets.js بار نەبوو', 'error');
+    document.head.appendChild(sc);
+  }
+
   function defineTabs() {
     TABS.length = 0;
-    // تابی کارەکان هەمیشە دروست دەکرێت — بینینی بە دەسەڵاتەکان دیاری دەکرێت
+    // تابی کارەکان بۆ بەڕێوەبەر دروست ناکرێت — بەڕێوەبەر لە پانێلی بەڕێوەبردن کار دەکات
     // (بنەڕەت: سایەق، دابەشکار و یاریدەدەر؛ دەکرێت بۆ پیشەی تر چالاک بکرێت لە فۆڕمی پیشە)
-    TABS.push({
-      id: 'driver', label: 'کارەکان', icon: ICONS.truck, roles: 'ALL',
-      render: el => DriverView.render(el),
-      onDeactivate: () => DriverView.stop(),
-    });
+    if (!isSupervisor(currentUser)) {
+      TABS.push({
+        id: 'driver', label: 'کارەکان', icon: ICONS.truck, roles: 'ALL',
+        render: el => DriverView.render(el),
+        onDeactivate: () => DriverView.stop(),
+      });
+    }
     TABS.push({
       id: 'reports', label: 'ڕاپۆرت', icon: ICONS.chart, roles: 'ALL',
       render: el => ReportsView.render(el),
       onDeactivate: () => ReportsView.stop(),
+    });
+    TABS.push({
+      id: 'target', label: 'تارگێت', icon: ICONS.target, roles: 'ALL',
+      render: el => withTargetView(() => TargetView.render(el)),
+      onDeactivate: () => { try { typeof TargetView !== 'undefined' && TargetView.stop(); } catch (_) {} },
+    });
+    TABS.push({
+      id: 'markets', label: 'ماڕکێتەکان', icon: ICONS.markets, roles: 'ALL',
+      render: el => withMarketsView(() => MarketsView.render(el)),
+      onDeactivate: () => { try { typeof MarketsView !== 'undefined' && MarketsView.stop && MarketsView.stop(); } catch (_) {} },
     });
     TABS.push({
       id: 'contacts', label: 'پەیوەندی', icon: ICONS.phone, roles: 'ALL',
@@ -67,7 +101,7 @@ const App = (() => {
   function visibleTabs() {
     // بینینی تابەکان بەپێی دەسەڵاتەکان — بەڕێوەبەر هەمیشە هەموو شتێک دەبینێت (Perms خۆی bypass دەکات)
     const u = currentUser;
-    const keyById = { driver: 'tab_driver', reports: 'tab_reports', contacts: 'tab_contacts', admin: 'tab_admin', settings: 'tab_settings' };
+    const keyById = { driver: 'tab_driver', reports: 'tab_reports', target: 'tab_target', markets: 'tab_markets', contacts: 'tab_contacts', admin: 'tab_admin', settings: 'tab_settings' };
     return TABS.filter(t => {
       if (t.id === 'professions') return isSupervisor(u);
       const k = keyById[t.id];
@@ -96,7 +130,16 @@ const App = (() => {
   function syncTabBack(id) {
     if (id !== homeTabId()) {
       if (!tabBackUnreg) {
-        tabBackUnreg = UI.backRegister(() => { tabBackUnreg = null; switchTab(homeTabId()); });
+        tabBackUnreg = UI.backRegister(() => {
+          tabBackUnreg = null;
+          // پارێزەری گلیچ — ئەگەر مۆدالێکی دەستکاری/زیادکردن کراوە بێت،
+          // گەڕانەوە بۆ تابی سەرەکی ئەنجام نەدرێت (بازدانی نەخوازراو لە کاتی کارکردندا)
+          if (document.querySelector('.modal-backdrop.open')) {
+            syncTabBack(currentTab.id);
+            return;
+          }
+          switchTab(homeTabId());
+        });
       }
     } else if (tabBackUnreg) {
       const u = tabBackUnreg; tabBackUnreg = null; u();
@@ -112,7 +155,7 @@ const App = (() => {
     syncTabBack(id);
 
     const page = $('#page');
-    page.className = 'page' + (id === 'admin' ? ' page-admin' : '');
+    page.className = 'page' + (id === 'admin' ? ' page-admin' : '') + ((id === 'settings' || id === 'contacts' || id === 'target' || id === 'markets') ? ' page-wide' : '');
     page.innerHTML = '';
     tab.render(page);
 
@@ -299,11 +342,18 @@ const App = (() => {
 
   document.addEventListener('dlv-notif-seen', updateTopbarNotifBadge);
 
+  /* — شاشەی پان بۆ دیسکتۆپ — بەڕێوەبەر یان ئەوانەی ئۆپشنی ui_desktop_wide یان هەیە — */
+  function applyWideLayout() {
+    const on = !!currentUser && (isSupervisor(currentUser) || Perms.canView(currentUser, 'ui_desktop_wide'));
+    document.body.classList.toggle('desktop-wide', on);
+  }
+
   /* — گۆڕانی دەسەڵاتەکان لە ئامێرەکانی تر — ئاگادارکردنەوە لە Store — */
   let permsUiSig = null;
 
   document.addEventListener('dlv-perms-changed', () => {
     if (!currentUser) return;
+    applyWideLayout();
     renderNav(); // بینینی تابەکان و ڕیزبەندییەکەیان لەوانەیە گۆڕابن
     const tabs = visibleTabs();
     if (currentTab && !tabs.find(t => t.id === currentTab.id)) {
@@ -337,9 +387,20 @@ const App = (() => {
 
     UI.btnLoading(btn, true, 'چاوەڕوان بە...');
     try {
+      const selectedId = String($('#login-username').value || '');
+
+      // مۆدی دەروازەی پارێزراو — پشکنینی تێپەڕەوشە لە سێرڤەر دەکرێت و تۆکن وەردەگیرێت
+      if (CONFIG.GATEWAY_URL) {
+        const res = await API.login(selectedId, password);
+        Store.setSession({ ...res.user, token: res.token }, remember);
+        UI.toast(`بەخێربێیت ${res.user.username} 👋`, 'success');
+        enterApp();
+        return;
+      }
+
+      // ڕێگای ڕاستەوخۆی کۆن (بێ دەروازە) — پشکنینی تێپەڕەوشە لە کڵایەنت
       const { users } = await Store.loadLists();
       // هەڵبژاردن بە ئایدی usersv2 — نەک ناو، چونکە دوو بەکارهێنەر دەتوانن ناوی هاوشێوە هەبن
-      const selectedId = String($('#login-username').value || '');
       const user = (users || []).find(u => String(u.id) === selectedId);
       if (!user) { UI.toast('ئەم بەکارهێنەرە نییە لە سیستەمدا', 'error'); return; }
       if (String(user.password) !== password) { UI.toast('تێپەڕەوشە هەڵەیە', 'error'); return; }
@@ -351,7 +412,11 @@ const App = (() => {
       UI.toast(`بەخێربێیت ${user.username} 👋`, 'success');
       enterApp();
     } catch (err) {
-      UI.toast('پەیوەندی بە ڕایەڵەوە نەکرا: ' + err.message, 'error', 4200);
+      if (err.code === 'BAD_CREDENTIALS') {
+        UI.toast('ناو یان تێپەڕەوشە هەڵەیە', 'error');
+      } else {
+        UI.toast('پەیوەندی بە ڕایەڵەوە نەکرا: ' + err.message, 'error', 4200);
+      }
     } finally {
       UI.btnLoading(btn, false);
     }
@@ -361,7 +426,7 @@ const App = (() => {
     const ok = await UI.confirmDialog('دڵنیاییت لە دەرچوون لە هەژمار؟', { danger: true, okLabel: 'بەڵێ، دەربچم', cancelLabel: 'پاشگەزبوونەوە' });
     if (!ok) return;
     if (tabBackUnreg) { const u = tabBackUnreg; tabBackUnreg = null; u(); }
-    ['driver', 'reports', 'contacts', 'admin', 'settings', 'professions'].forEach(id => {
+    ['driver', 'reports', 'target', 'markets', 'contacts', 'admin', 'settings', 'professions'].forEach(id => {
       try {
         const t = TABS.find(x => x.id === id);
         if (t && t.onDeactivate) t.onDeactivate();
@@ -378,6 +443,7 @@ const App = (() => {
       }).catch(() => {});
     }
     document.body.classList.remove('role-supervisor');
+    document.body.classList.remove('desktop-wide');
     currentUser = null;
     currentTab = null;
     showLogin();
@@ -392,7 +458,13 @@ const App = (() => {
 
   function initLoginSelect() {
     const sel = $('#login-username');
-    Store.loadLists()
+    // مۆدی دەروازە: لیستی سووک (بێ تێپەڕەوشە و تەلەفۆن) لە سێرڤەرەوە —
+    // چونکە پێش چوونەژوورەوە هیچ داتایەکی هەستیار نابێت بگەڕێتەوە
+    const usersPromise = CONFIG.GATEWAY_URL
+      ? API.loginOptions().then(rows => ({ users: rows || [] }))
+      : Store.loadLists();
+
+    usersPromise
       .then(({ users }) => {
         // ژماردنی ناوە دووبارەکان — بۆ نیشاندانی جیاوازی لە لیستەکەدا
         const nameCounts = {};
@@ -439,6 +511,7 @@ const App = (() => {
     document.body.classList.toggle('role-supervisor', isSupervisor(currentUser));
     // لیستەکان و دەسەڵاتەکان پێش ڕێندەر — بۆ ئەوەی تابەکان بەپێی دەسەڵاتە ڕاستەکان دەربکەون
     try { await Store.loadLists(); } catch (_) { /* کاش/بنەڕەت بەکاردەهێنرێت */ }
+    applyWideLayout();
     renderHeader();
     defineTabs();
     renderNav();
@@ -476,11 +549,16 @@ const App = (() => {
     $('#app-view').hidden = true;
     $('#login-view').hidden = false;
     $('#login-foot').textContent = `${CONFIG.APP_NAME} • نسخە ${CONFIG.APP_VERSION}`;
+    // ئەگەر لیستی بەکارهێنەران هێشتا پڕ نەکراوە (دوای دەرچوون لە سێشنی چالاک) — پڕی بکەرەوە
+    if (!$('#login-username optgroup')) initLoginSelect();
   }
 
   function boot() {
     Store.applySettings();
-    initLoginSelect();
+    // لیستی چوونەژوورەوە تەنها کاتێک هێنەرێ کە شاشەی لۆگین دەکرێتەوە —
+    // لەگەڵ سێشنی چالاک (منی بیربکە) هیچ داواکارییەکی سەرەتایی زیادە ناکرێت و دەستپێک خێرایە
+    if (Store.getSession()) enterApp();
+    else { initLoginSelect(); showLogin(); }
     // خانەی تێپەڕەوشە بێ type="password" بکە (لە براوسەرانی پشتگیریکراو) — بۆ نەبوونی پۆپئەپی سەیڤکردنی پاسۆرد
     UI.maskSecretInputs(document);
 
@@ -488,8 +566,6 @@ const App = (() => {
     $('#login-password').addEventListener('input', e => {
       e.target.value = UI.toLatinDigits(e.target.value).replace(/\D/g, '').slice(0, 4);
     });
-
-    if (Store.getSession()) enterApp(); else showLogin();
 
     // کرۆم: State ی مێژوو بێ tap ی بەکارهێنەر تۆمار ناکرێت — لە یەکەم tap دووبارە دەسەلمێنرێت
     document.addEventListener('pointerdown', () => { if (currentTab) syncTabBack(currentTab.id); }, { capture: true, once: true });
@@ -501,5 +577,5 @@ const App = (() => {
   }
 
   document.addEventListener('DOMContentLoaded', boot);
-  return { switchTab, getUser: () => currentUser, renderHeader, logout };
+  return { switchTab, getUser: () => currentUser, getCurrentTab: () => currentTab, renderHeader, logout };
 })();

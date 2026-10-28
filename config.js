@@ -10,6 +10,7 @@ const CONFIG = {
   RECORDS_URL: 'https://rivwvzdjfotkjhpuwuaf.supabase.co/rest/v1',
   RECORDS_KEY: 'sb_publishable_Chpd_Xgyls9HJQJl3TPV3A_UMojpoGA',
   RECORDS_TABLE: 'delivery_records',
+  MARKETS_TABLE: 'market_locaetion',
 
   /* پڕۆژەی دووەم — خشتەی لیست بۆکسەکان (بەکارهێنەران و زۆنەکان) */
   LISTS_URL: 'https://gyxfgtoedunvkduslhld.supabase.co/rest/v1',
@@ -17,6 +18,13 @@ const CONFIG = {
   USERS_TABLE: 'usersv2',
   ZONES_TABLE: 'zonesv2',
   VEHICLES_TABLE: 'vehiclesv2',
+  VEHICLE_COLUMN: 'vehicle_number',
+
+  /* دەروازەی پارێزراو — Supabase Edge Function کە هەموو داتاکان بە ئەوەوە تێپەڕ دەبن.
+   * پاش جێبەجێکردنی فەنکشنەکە (سەیری SECURITY-GUIDE.md بکە) ئەم بەستانە دابنێ:
+   * 'https://gyxfgtoedunvkduslhld.supabase.co/functions/v1/gateway'
+   * بەتاڵ بێت = ڕێگای ڕاستەوخۆی کۆن (بێ پاراستنی سێرڤەر) */
+  GATEWAY_URL: 'https://gyxfgtoedunvkduslhld.supabase.co/functions/v1/gateway',
 
   /* زانیاری بەکارهێنەر */
   PROFESSION_DRIVER: 'سایەق',

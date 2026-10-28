@@ -6,7 +6,8 @@ const Store = (() => {
   const SESSION_KEY = 'dlv_session';
   const SETTINGS_KEY = 'dlv_settings';
   const LISTS_CACHE_KEY = 'dlv_lists_cache';
-  const LISTS_TTL_MS = 10 * 60 * 1000; // ١٠ خولەک
+  const VEHICLES_TTL_MS = 60 * 1000; // ژمارەی سەیارەکان — هەر ٦٠ چرکە جارێک لە Supabase نوێ دەکرێنەوە
+  const LISTS_TTL_MS = 30 * 60 * 1000; // ٣٠ خولەک — پاش هەر گۆڕانکارییەک بە خۆکاری بەتاڵ دەکرێتەوە
 
   /* ---------------- سێشن ---------------- */
 
@@ -71,12 +72,15 @@ const Store = (() => {
   };
 
   function getSettings() {
-    const defaults = { theme: 'dark', accent: CONFIG.DEFAULT_ACCENT, borderColor: null, rowClickFullscreen: true, reportCardLayout: true, cellTitles: false, showHints: true, showIcons: true, glow: false, glowColor: '#10b981', glowLen: 20, glowSpeed: 4, notifDays: 1, lockScreenActions: false, customKeypadText: false, customKeypadNum: false, hiddenCols: [], hiddenTotals: [], ...FONT_DEFAULTS, ...PRINT_DEFAULTS };
+    const defaults = { theme: 'dark', accent: CONFIG.DEFAULT_ACCENT, borderColor: null, rowClickFullscreen: true, reportCardLayout: true, cellTitles: false, showHints: true, showIcons: true, glow: false, glowColor: '#10b981', glowLen: 20, glowSpeed: 4, btnAnim: true, btnAnimMode: 'truck', lastWeekFill: true, watchDuplicates: true, notifDays: 1, lockScreenActions: false, shortcutsEnabled: false, shortcuts: {}, hiddenCols: [], hiddenTotals: [], ...FONT_DEFAULTS, ...PRINT_DEFAULTS };
     try {
       const s = Object.assign(defaults, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'));
-      /* کۆچکردن: ڕێکخستنی کۆنی customKeypad دابەش دەکرێت بۆ دوو ڕێکخستنی جیا */
-      if (s.customKeypadText === undefined) s.customKeypadText = !!s.customKeypad;
-      if (s.customKeypadNum === undefined) s.customKeypadNum = !!s.customKeypad;
+      /* کیبۆردی تایبەت لابراوە — ڕێکخستنە کۆنەکانیشی دەسڕدرێنەوە */
+      delete s.customKeypad;
+      delete s.customKeypadText;
+      delete s.customKeypadNum;
+      /* کۆچکردن: ئەنیمەیشنی دووگمەکان — btnAnim ی کۆن (true/false) دەگوازرێتەوە بۆ btnAnimMode */
+      if (s.btnAnimMode === undefined) s.btnAnimMode = (s.btnAnim === false) ? 'off' : 'truck';
       return s;
     } catch (_) {
       return defaults;
@@ -139,8 +143,35 @@ const Store = (() => {
 
   let memoryLists = null;
 
+  /** ناوی/ژمارەی سەیارە لە ڕیزی vehiclesv2 — یەک لۆژیک بۆ هەموو بەشەکانی سیستەم */
+  const VEH_KEYS = ['vehicle_number', 'plate_number', 'number', 'name', 'vehicle', 'plate'];
+  const VEH_SKIP = ['id', 'created_at', 'updated_at', 'inserted_at'];
+  function vehicleLabel(v) {
+    if (!v) return '';
+    let k = VEH_KEYS.find(x => v[x] !== undefined && v[x] !== null);
+    if (!k) k = Object.keys(v).find(x => !VEH_SKIP.includes(x) && v[x] !== null && v[x] !== undefined);
+    return k ? String(v[k]).trim() : '';
+  }
+
+  /** ئەگەر لیستی سەیارەکان کۆن بوو (>٦٠ چرکە) لە Supabase نوێی دەکاتەوە */
+  async function ensureFreshVehicles(lists) {
+    if (!lists) return lists;
+    if (lists.vehiclesTs && Date.now() - lists.vehiclesTs < VEHICLES_TTL_MS) return lists;
+    try {
+      const v = await API.Lists.vehicles();
+      lists.vehicles = Array.isArray(v) ? v : [];
+      lists.vehiclesTs = Date.now();
+      if (memoryLists === lists) {
+        try { localStorage.setItem(LISTS_CACHE_KEY, JSON.stringify(lists)); } catch (_) {}
+      }
+    } catch (err) {
+      console.warn('نەتوانرا ژمارەی سەیارەکان لە Supabase نوێ بکرێنەوە:', err);
+    }
+    return lists;
+  }
+
   async function loadLists(force = false) {
-    if (memoryLists && !force) return memoryLists;
+    if (memoryLists && !force) return ensureFreshVehicles(memoryLists);
 
     try {
       const raw = localStorage.getItem(LISTS_CACHE_KEY);
@@ -148,16 +179,18 @@ const Store = (() => {
         const cached = JSON.parse(raw);
         if (Date.now() - cached.ts < LISTS_TTL_MS && cached.users && cached.zones) {
           memoryLists = cached;
-          return cached;
+          return ensureFreshVehicles(cached);
         }
       }
     } catch (_) { /* کاشی خراپ — پشتگوێ بخرێت */ }
 
+    let vehiclesOk = true;
     const [users, zones, vehicles, profData] = await Promise.all([
       API.Lists.users(),
       API.Lists.zones(),
       API.Lists.vehicles().catch(err => {
         console.warn('نەتوانرا لیستی سەیارەکان لە vehiclesv2 بهێنرێت:', err);
+        vehiclesOk = false;
         return [];
       }),
       API.Professions.all().catch(err => {
@@ -170,6 +203,7 @@ const Store = (() => {
       users: UI.sortUsers(users),
       zones,
       vehicles: vehicles || [],
+      vehiclesTs: vehiclesOk ? Date.now() : 0,
       professions: (profData.names || []).map(r => r.profession),
       perms: API.Professions.parsePerms(profData.permsRaw),
     };
@@ -240,6 +274,36 @@ const Store = (() => {
     return true;
   }
 
+  /* — شاردنەوەی بەکارهێنەر/زۆن/سەیارە لای هەموو یوسەرەکان —
+   * لە کۆنفیگی ناوەندی (cfg.hidden) پاشەکەوت دەکرێت: { users: [id], zones: [id], vehicles: [id] } */
+  function getHidden(kind) {
+    const h = getPermsConfig().hidden;
+    return (h && Array.isArray(h[kind])) ? h[kind].map(String) : [];
+  }
+  const isHidden = (kind, id) => getHidden(kind).includes(String(id));
+  /** تەنها ئەو توخمانە دەگەڕێنێتەوە کە نەشاردراون (بە ئایدی) */
+  function visible(kind, arr) {
+    const hid = getHidden(kind);
+    if (!hid.length) return arr || [];
+    return (arr || []).filter(x => !hid.includes(String(x && x.id)));
+  }
+  /** شاردنەوە/پشاندانی توخمێک — لەسەر نوێترین کۆنفیگی سێرڤەر دەنووسرێت */
+  async function setHidden(kind, id, hidden) {
+    let cfg;
+    try {
+      const data = await API.Professions.all();
+      cfg = JSON.parse(JSON.stringify(API.Professions.parsePerms(data.permsRaw) || {}));
+    } catch (_) {
+      cfg = JSON.parse(JSON.stringify(getPermsConfig()));
+    }
+    cfg.hidden = cfg.hidden || {};
+    const cur = new Set((Array.isArray(cfg.hidden[kind]) ? cfg.hidden[kind] : []).map(String));
+    if (hidden) cur.add(String(id)); else cur.delete(String(id));
+    cfg.hidden[kind] = [...cur];
+    await savePermsConfig(cfg);
+    return true;
+  }
+
   /* — پشکنینی خۆکاری گۆڕانی دەسەڵاتەکان لە ئامێرەکانی تر —
    * هەر ماوەیەک جارێک خشتەی سووکی professions دەپشکنێت؛ ئەگەر گۆڕانکاری هەبوو
    * کاش نوێ دەکاتەوە و ڕووداوی dlv-perms-changed دەنێرێت بۆ نوێکردنەوەی ڕووکار */
@@ -298,5 +362,162 @@ const Store = (() => {
     return true;
   }
 
-  return { getSession, setSession, updateSession, clearSession, getSettings, saveSettings, applySettings, isColHidden, isTotalHidden, loadLists, invalidateLists, getTabState, saveTabState, getPermsConfig, getCustomProfessions, savePermsConfig, addProfession, removeProfession, getBaseTime, setBaseTime, startPermsPolling, stopPermsPolling, PRINT_DEFAULTS };
+  /* ---------------- ماڕکێتەکان (public.market_locaetion) ---------------- */
+  const MARKETS_CACHE_KEY = 'dlv_markets_cache';
+  let memoryMarkets = null;
+
+  function dedupeMarkets(list) {
+    if (!Array.isArray(list)) return [];
+    const seen = new Set();
+    const result = [];
+    for (const m of list) {
+      if (!m) continue;
+      const code = String(m.account_code || '').trim();
+      if (!code || seen.has(code)) continue;
+      seen.add(code);
+      result.push(m);
+    }
+    return result;
+  }
+
+  async function loadMarkets(force = false) {
+    if (memoryMarkets && !force) return memoryMarkets;
+    try {
+      if (typeof API !== 'undefined' && API.Markets && API.Markets.list) {
+        const rows = await API.Markets.list();
+        if (Array.isArray(rows)) {
+          if (rows.length > 0) {
+            const cleanRows = dedupeMarkets(rows);
+            memoryMarkets = cleanRows;
+            try { localStorage.setItem(MARKETS_CACHE_KEY, JSON.stringify(cleanRows)); } catch (_) {}
+            return cleanRows;
+          } else {
+            const cached = getCachedMarkets();
+            if (cached && cached.length > 0) {
+              memoryMarkets = cached;
+              return cached;
+            }
+            memoryMarkets = [];
+            return [];
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('نەتوانرا لیستی ماڕکێتەکان لە Supabase بهێنرێت:', err);
+    }
+    return getCachedMarkets();
+  }
+
+  function getCachedMarkets() {
+    try {
+      const raw = localStorage.getItem(MARKETS_CACHE_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return dedupeMarkets(arr);
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  function saveMarketsCache(markets) {
+    const clean = dedupeMarkets(markets);
+    memoryMarkets = clean;
+    try {
+      localStorage.setItem(MARKETS_CACHE_KEY, JSON.stringify(clean));
+      window.dispatchEvent(new CustomEvent('dlv-markets-changed', { detail: clean }));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  return { getSession, setSession, updateSession, clearSession, getSettings, saveSettings, applySettings, isColHidden, isTotalHidden, loadLists, vehicleLabel, invalidateLists, getTabState, saveTabState, getPermsConfig, getHidden, isHidden, visible, setHidden, getCustomProfessions, savePermsConfig, addProfession, removeProfession, getBaseTime, setBaseTime, startPermsPolling, stopPermsPolling, PRINT_DEFAULTS, loadMarkets, getCachedMarkets, saveMarketsCache, getMarkets: getCachedMarkets, saveMarkets: saveMarketsCache };
 })();
+
+
+/* =========================================================
+ *  ڕەشکراوەکان (Trash) — باک ئەپی هەر داتایەک کە دەسڕدرێتەوە
+ *  داتای سڕاوە (تۆمار / بەکارهێنەر / زۆن / سەیارە) بۆ ٣٠ ڕۆژ لێرە دەمێنێتەوە،
+ *  دواتر بە خۆکاری بە یەکجاری دەسڕدرێتەوە. لە ناو ئەم ئامێرە/وێبگەڕەدا هەڵدەگیرێت (localStorage).
+ * ========================================================= */
+const Trash = (() => {
+  const KEY = 'dlv_trash_v1';
+  const RETENTION_DAYS = 30;
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  const KINDS = {
+    record: { label: 'تۆمار', icon: '🚚' },
+    user: { label: 'بەکارهێنەر', icon: '👤' },
+    zone: { label: 'زۆن', icon: '🗺️' },
+    vehicle: { label: 'سەیارە', icon: '🚐' },
+  };
+
+  const read = () => {
+    try {
+      const a = JSON.parse(localStorage.getItem(KEY) || '[]');
+      return Array.isArray(a) ? a : [];
+    } catch (_) { return []; }
+  };
+  const write = list => {
+    try { localStorage.setItem(KEY, JSON.stringify(list)); return true; } catch (_) { return false; }
+  };
+
+  /** سڕینەوەی یەکجاری ئەوانەی لە ٣٠ ڕۆژ تێپەڕیون */
+  function purgeExpired() {
+    const all = read();
+    const cutoff = Date.now() - RETENTION_DAYS * DAY_MS;
+    const keep = all.filter(x => x && x.deletedAt && x.deletedAt >= cutoff);
+    if (keep.length !== all.length) write(keep);
+    return all.length - keep.length;
+  }
+
+  function list() {
+    purgeExpired();
+    return read().sort((a, b) => b.deletedAt - a.deletedAt);
+  }
+
+  /** زیادکردن بۆ ڕەشکراوەکان — tid دەگەڕێنێتەوە، یان null ئەگەر شوێنی ئامێرەکە پڕ بوو */
+  function add(kind, data, label) {
+    if (!KINDS[kind] || !data) return null;
+    const all = read().filter(x => !(x.kind === kind && x.data && data.id !== undefined && x.data.id === data.id));
+    const tid = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    all.push({ tid, kind, label: String(label || ''), data: JSON.parse(JSON.stringify(data)), deletedAt: Date.now() });
+    return write(all) ? tid : null;
+  }
+
+  function remove(tid) {
+    write(read().filter(x => x.tid !== tid));
+  }
+
+  function clear() {
+    write([]);
+  }
+
+  /** ڕۆژی ماوە تا سڕینەوەی خۆکار */
+  function daysLeft(item) {
+    const left = Math.ceil((item.deletedAt + RETENTION_DAYS * DAY_MS - Date.now()) / DAY_MS);
+    return Math.max(0, left);
+  }
+
+  /** باک ئەپ + سڕینەوە: سەرەتا لە ڕەشکراوەکان هەڵدەگیرێت، پاشان doDelete جێبەجێ دەکرێت؛
+   *  ئەگەر سڕینەوە شکستی هێنا، لە ڕەشکراوەکان لادەبرێتەوە. false = بەکارهێنەر پاشگەز بووەوە */
+  async function guardDelete(kind, data, label, doDelete) {
+    const tid = add(kind, data, label);
+    if (!tid) {
+      const ok = await UI.confirmDialog('شوێنی هەڵگرتن لەم ئامێرەدا پڕە و ناتوانرێت لە «ڕەشکراوەکان» باک ئەپ بکرێت.\nدەتەوێت بەبێ باک ئەپ بیسڕیتەوە؟', {
+        danger: true, okLabel: 'بەڵێ، بەبێ باک ئەپ بیسڕەوە', cancelLabel: 'پاشگەزبوونەوە'
+      });
+      if (!ok) return false;
+    }
+    try {
+      await doDelete();
+    } catch (err) {
+      if (tid) remove(tid);
+      throw err;
+    }
+    return true;
+  }
+
+  return { KINDS, RETENTION_DAYS, list, add, remove, clear, daysLeft, purgeExpired, guardDelete };
+})();
+try { Trash.purgeExpired(); } catch (_) { /* بێدەنگ */ }

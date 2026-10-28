@@ -17,7 +17,7 @@ const AdminView = (() => {
   let refreshTimer = null;
 
   let state = {
-    subtab: 'records', // 'records' | 'users' | 'zones'
+    subtab: 'records', // 'records' | 'users' | 'zones' | 'vehicles' | 'trash'
     loading: false,
 
     // خشتەی تۆمارەکان
@@ -39,8 +39,16 @@ const AdminView = (() => {
     // خشتەی زۆنەکان
     zones: [],
     zoneSearch: '',
+    vehicles: [],
+    vehiclesError: '',
+    vehicleSearch: '',
+
+    // ڕەشکراوەکان
+    trashSearch: '',
+    trashKind: '',
 
     secondOnly: false, // تەنها باری دووەم پیشان بدە
+    firstOnly: false,  // تەنها باری یەکەم پیشان بدە
     outZoneOnly: false, // تەنها تۆمارەکانی دەرێی زۆن (هەمان فلتەری فۆڕمی ڕاپۆرت)
     arrivalOnly: false, // تەنها تۆمارەکانی گەشتنەوە (هەمان فلتەری فۆڕمی ڕاپۆرت)
   };
@@ -56,6 +64,33 @@ const AdminView = (() => {
     if (/(?:^|\s)سێ$/.test(d)) return 2;
     return 0;
   };
+
+  /* دووگمەی بارەکان — سووڕانەوە: «١» هەموو دەرچوونەکان ← «٢» تەنها باری یەکەم ← «٠» تەنها باری دووەم ← «١» ...
+   * ژمارەکە نیشانی ئەو دۆخەیە کە لەسەر شاشەیە؛ داگرتن دەچێتە دۆخی دواتر (ئایکۆنەکە ژمارەی دۆخی نوێ پیشان دەدات). */
+  const cargoModeLabel = () => state.secondOnly ? '0' : (state.firstOnly ? '2' : '1');
+  const cargoModeTitle = () => state.secondOnly ? 'ئێستا: تەنها باری دووەم — داگرتن: هەموو دەرچوونەکان'
+    : (state.firstOnly ? 'ئێستا: تەنها باری یەکەم — داگرتن: تەنها باری دووەم' : 'ئێستا: هەموو دەرچوونەکان — داگرتن: تەنها باری یەکەم');
+  const cycleCargoMode = () => {
+    if (state.secondOnly) { state.secondOnly = false; state.firstOnly = false; }
+    else if (state.firstOnly) { state.firstOnly = false; state.secondOnly = true; }
+    else { state.firstOnly = true; }
+  };
+  const syncCargoBtn = btn => {
+    btn.textContent = cargoModeLabel();
+    btn.title = cargoModeTitle();
+    btn.classList.toggle('active', !!(state.firstOnly || state.secondOnly));
+  };
+
+  /* بەتەنیا دەرچوون — خانەی دابەشکار «بەتەنها» (یان بەتەنیا / تەنها) بێت،
+   * و خانەی سایەق تەنها یەک ناوی تێدا بێت (پاشگری دوو/سێ ڕێگەپێدراوە، «و» + ناوی تر نا) */
+  const ALONE_RE = /(?:^|\s)(?:بە\s*)?(?:تەنها|تەنیا)(?:\s|$)/;
+  const isAloneDistributor = v => ALONE_RE.test(UI.norm(v));
+  const isSingleDriver = v => {
+    const t = UI.norm(v).replace(/\s*\+\s*$/, '').replace(/\s*(?:دوو|سێ)$/, '').trim();
+    if (!t) return false;
+    return t.split(/\s+و\s+|\s*\(\s*و\s*\)\s*|\s*[,،&+/]\s*/).filter(Boolean).length === 1;
+  };
+  const isAloneTrip = r => !!r && isAloneDistributor(r.distributor) && isSingleDriver(r.driver);
 
   // هەڵبژاردەی فلتەری بەکارهێنەر ئایدی یوسەرە لە usersv2 — نەک ناو
   function selectedUserObj() {
@@ -85,10 +120,21 @@ const AdminView = (() => {
     }
 
     try {
-      // هێنانی لیستەکان (usersv2 + zonesv2)
-      const ls = await Store.loadLists(true);
+      // هێنانی لیستەکان (usersv2 + zonesv2) — لە کاشەوە ئەگەر نوێ بێت
+      // (پاش هەر گۆڕانکارییەک کاشەکە بە خۆکاری نوێ دەکرێتەوە) — بۆ خێرایی
+      const ls = await Store.loadLists();
       state.users = ls.users || [];
       state.zones = ls.zones || [];
+      // سەیارەکان — ڕاستەوخۆ لە Supabase (نەک کاش) و هەڵەکەش پیشان دەدرێت
+      try {
+        const freshVeh = await API.Lists.vehicles();
+        state.vehicles = Array.isArray(freshVeh) ? freshVeh : [];
+        state.vehiclesError = '';
+        if ((ls.vehicles || []).length !== state.vehicles.length) Store.invalidateLists();
+      } catch (verr) {
+        state.vehicles = ls.vehicles || [];
+        state.vehiclesError = verr.message || String(verr);
+      }
 
       // هێنانی تۆمارەکان (delivery_records) بەپێی بەروار
       const params = { select: '*', order: 'record_date.desc,id.desc' };
@@ -140,6 +186,9 @@ const AdminView = (() => {
     if (state.secondOnly) {
       rows = rows.filter(r => cargoIdxOf(r) >= 1);
     }
+    if (state.firstOnly) {
+      rows = rows.filter(r => cargoIdxOf(r) === 0);
+    }
 
     // فلتەری دەرێی زۆن — تۆمارەکانی دەرێی زۆن کردووە بەبێ گەشتنەوە (وەک فۆڕمی ڕاپۆرت)
     if (state.outZoneOnly) {
@@ -188,6 +237,62 @@ const AdminView = (() => {
     return rows;
   }
 
+  /* شاردنەوە/پشاندانی توخمێک لای هەموو یوسەرەکان */
+  const canToggleHidden = () => Perms.canAct(App.getUser(), 'admin_toggle_hidden');
+  const hideBtnHtml = (kind, id, cls) => {
+    if (!canToggleHidden()) return '';
+    const h = Store.isHidden(kind, id);
+    return `<button type="button" class="${cls} adm-hide-btn" data-kind="${kind}" data-id="${UI.esc(String(id))}" title="${h ? 'پشاندان لای هەموو' : 'شاردنەوە لای هەموو'}">${h ? '🙈' : '👁️'}</button>`;
+  };
+  const hiddenBadge = (kind, id) => Store.isHidden(kind, id) ? '<span class="chip hidden-badge">🙈 شاردراوە</span>' : '';
+  function bindHideButtons(root, getItems) {
+    root.querySelectorAll('.adm-hide-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const kind = btn.dataset.kind;
+        const id = btn.dataset.id;
+        const nowHidden = !Store.isHidden(kind, id);
+        btn.disabled = true;
+        try {
+          await Store.setHidden(kind, id, nowHidden);
+          UI.toast(nowHidden ? 'لای هەموو یوسەرەکان شاردرایەوە 🙈' : 'لای هەموو یوسەرەکان پیشان دەدرێت 👁️', 'success');
+          renderContent();
+        } catch (err) {
+          btn.disabled = false;
+          UI.toast('هەڵە لە پاشەکەوتکردن: ' + err.message, 'error', 4200);
+        }
+      });
+    });
+  }
+
+  /* ژمارەی سەیارە — ناوی ستوونەکە بە دۆزینەوە لە ڕیزەکان (یان CONFIG.VEHICLE_COLUMN) */
+  const VEH_KEYS = ['vehicle_number', 'plate_number', 'number', 'name', 'vehicle', 'plate'];
+  const VEH_SKIP = ['id', 'created_at', 'updated_at', 'inserted_at'];
+  function vehicleKeyOf(row) {
+    if (!row) return null;
+    const k = VEH_KEYS.find(x => row[x] !== undefined && row[x] !== null);
+    if (k) return k;
+    // ناوی ستوونەکە نەزانراو — یەکەم ستوونی نادیاری (نە id و نە بەروار)
+    return Object.keys(row).find(x => !VEH_SKIP.includes(x) && row[x] !== null && row[x] !== undefined) || null;
+  }
+  function vehicleKey() {
+    for (const r of (state.vehicles || [])) { const k = vehicleKeyOf(r); if (k) return k; }
+    return CONFIG.VEHICLE_COLUMN || 'vehicle_number';
+  }
+  const vehicleLabel = r => {
+    if (!r) return '';
+    const k = vehicleKeyOf(r);
+    return String((k && r[k]) ?? '').trim();
+  };
+
+  function filteredVehicles() {
+    let rows = state.vehicles || [];
+    if (state.vehicleSearch) {
+      const q = norm(state.vehicleSearch);
+      rows = rows.filter(r => norm(vehicleLabel(r)).includes(q));
+    }
+    return rows;
+  }
+
   /* ---------------- ڕێندەری سەرەکی ---------------- */
 
   function render(el) {
@@ -223,6 +328,14 @@ const AdminView = (() => {
           ${Perms.canView(App.getUser(), 'admin_zones') ? `
           <button type="button" class="admin-tab-btn ${state.subtab === 'zones' ? 'active' : ''}" data-sub="zones">
             <span class="sec-icon">${UI.icon('map', 15)}</span> زۆنەکان <span class="badge-count" id="badge-zones-count">${state.zones.length}</span>
+          </button>` : ''}
+          ${Perms.canView(App.getUser(), 'admin_vehicles') ? `
+          <button type="button" class="admin-tab-btn ${state.subtab === 'vehicles' ? 'active' : ''}" data-sub="vehicles">
+            <span class="sec-icon">${UI.icon('truck', 15)}</span> سەیارەکان <span class="badge-count" id="badge-vehicles-count">${state.vehicles.length}</span>
+          </button>` : ''}
+          ${Perms.canView(App.getUser(), 'admin_trash') ? `
+          <button type="button" class="admin-tab-btn ${state.subtab === 'trash' ? 'active' : ''}" data-sub="trash">
+            <span class="sec-icon">${UI.icon('trash', 15)}</span> ڕەشکراوەکان <span class="badge-count" id="badge-trash-count">${Trash.list().length}</span>
           </button>` : ''}
           <!-- فۆڕمی پیشە — تەنها لە مۆبایل لێرە دەردەکەوێت (لە دیسکتۆپ لە باڕی خوارەوەیە) -->
           <button type="button" class="admin-tab-btn admin-mobile-only" id="admin-professions-btn" title="فۆڕمی پیشە و دەسەڵاتەکان">
@@ -293,10 +406,16 @@ const AdminView = (() => {
     if (bu) bu.textContent = state.users.length;
     const bz = $('#badge-zones-count', container);
     if (bz) bz.textContent = state.zones.length;
+    const bv = $('#badge-vehicles-count', container);
+    if (bv) bv.textContent = state.vehicles.length;
+    const bt = $('#badge-trash-count', container);
+    if (bt) bt.textContent = Trash.list().length;
 
     if (state.subtab === 'records') renderRecordsTab(wrap);
     else if (state.subtab === 'users') renderUsersTab(wrap);
     else if (state.subtab === 'zones') renderZonesTab(wrap);
+    else if (state.subtab === 'vehicles') renderVehiclesTab(wrap);
+    else if (state.subtab === 'trash') renderTrashTab(wrap);
   }
 
   function renderRecordsTab(wrap) {
@@ -326,7 +445,7 @@ const AdminView = (() => {
         <div class="date-range-compact with-toggle">
           <div class="field compact-field"><label>لە بەروار</label><input type="date" id="adm-from" value="${state.from}"></div>
           <div class="field compact-field"><label>بۆ بەروار</label><input type="date" id="adm-to" value="${state.to}"></div>
-          <button type="button" class="field-toggle-btn ${state.secondOnly ? 'active' : ''}" id="adm-second-only" title="تەنها تۆمارەکانی باری دووەم پیشان بدە">تەنها باری دووەم</button>
+          <button type="button" class="field-toggle-btn rep-view-btn ${(state.firstOnly || state.secondOnly) ? 'active' : ''}" id="adm-second-only" title="${cargoModeTitle()}">${cargoModeLabel()}</button>
         </div>
 
         <div class="field-row">
@@ -367,8 +486,8 @@ const AdminView = (() => {
     $('#adm-day-filter', wrap).addEventListener('change', e => { state.dayFilter = e.target.value; renderRecordsResults(wrap); });
     $('#adm-rec-search', wrap).addEventListener('input', e => { state.recordSearch = e.target.value; renderRecordsResults(wrap); });
     $('#adm-second-only', wrap).addEventListener('click', e => {
-      state.secondOnly = !state.secondOnly;
-      e.currentTarget.classList.toggle('active', state.secondOnly);
+      cycleCargoMode();
+      syncCargoBtn(e.currentTarget);
       renderRecordsResults(wrap);
     });
 
@@ -430,6 +549,8 @@ const AdminView = (() => {
     const rows = filteredRecords();
 
     // جیاکردنەوەی بارەکان بەپێی پاشگری ناوی شۆفێر («دوو»/«سێ» = باری دووەم/سێیەم)
+    const dupMap = UI.dupWatchMap(state.records);
+    const dupStyle = (r, f) => (dupMap.get(r.id) && dupMap.get(r.id).has(f)) ? 'color:#ef4444;font-weight:700' : '';
     const firstRows = rows.filter(r => cargoIdxOf(r) === 0);
     const secondRows = rows.filter(r => cargoIdxOf(r) >= 1);
 
@@ -467,11 +588,11 @@ const AdminView = (() => {
     const COLS = [
       { key: 'record_date', label: 'بەروار', cls: 'nowrap', render: r => UI.esc(r.record_date || '—') },
       { key: 'weekday', label: 'ڕۆژی حەفتە', render: r => r.record_date ? UI.weekdayKu(new Date(r.record_date + 'T00:00:00')) : '—' },
-      { key: 'driver', label: 'شۆفێر', render: r => `<b>${UI.esc(r.driver || '—')}</b>` },
-      { key: 'distributor', label: 'دابەشکار', render: r => UI.esc(r.distributor || '—') },
+      { key: 'driver', label: 'شۆفێر', styleFn: r => dupStyle(r, 'driver'), render: r => `<b>${UI.esc(r.driver || '—')}</b>` },
+      { key: 'distributor', label: 'دابەشکار', styleFn: r => dupStyle(r, 'distributor'), render: r => UI.esc(r.distributor || '—') },
       { key: 'delegate', label: 'مەندوب', render: r => UI.esc(r.delegate || '—') },
       { key: 'zone', label: 'زۆن', render: r => UI.esc(r.zone || '—') },
-      { key: 'vehicle', label: 'سەیارە', render: r => UI.esc(r.vehicle || '—') },
+      { key: 'vehicle', label: 'سەیارە', styleFn: r => dupStyle(r, 'vehicle'), render: r => UI.esc(r.vehicle || '—') },
       { key: 'cargo_weight', label: 'کێش', render: r => UI.fmtNum(r.cargo_weight) },
       { key: 'pieces_count', label: 'پارچە', render: r => UI.fmtNum(r.pieces_count) },
       { key: 'receipt_number', label: 'وەسڵ', render: r => UI.fmtNum(r.receipt_number) },
@@ -575,10 +696,10 @@ const AdminView = (() => {
     // ستوونی average_time — کۆگای کاتی کارکردن؛ خانەی دەستی تەنها کاتێک پیشان دەدرێت
     // کە ستوونەکە لە داتابەیسەکەدا بێت (ئەگینا پاشەکەوتکردن بە PGRST204 شکست دەهێنێت)
     const supportsWorkTime = await API.Records.hasColumn('average_time').catch(() => false);
-    const distributors = state.users.filter(u => u.profession === CONFIG.PROFESSION_DISTRIBUTOR).map(u => ({ label: u.username }));
-    const delegates = state.users.filter(u => u.profession === CONFIG.PROFESSION_DELEGATE).map(u => ({ label: u.username }));
-    const drivers = state.users.filter(u => u.profession === CONFIG.PROFESSION_DRIVER).map(u => ({ label: u.username }));
-    const zones = state.zones.map(z => ({ label: z.name }));
+    const distributors = Store.visible('users', state.users).filter(u => u.profession === CONFIG.PROFESSION_DISTRIBUTOR).map(u => ({ label: u.username }));
+    const delegates = Store.visible('users', state.users).filter(u => u.profession === CONFIG.PROFESSION_DELEGATE).map(u => ({ label: u.username }));
+    const drivers = Store.visible('users', state.users).filter(u => u.profession === CONFIG.PROFESSION_DRIVER).map(u => ({ label: u.username }));
+    const zones = Store.visible('zones', state.zones).map(z => ({ label: z.name }));
 
     // جیاکردنەوەی بەهای «X و Y» — هەمان شێوازی فۆڕمی دەستکاری داتا
     const splitCombined = value => {
@@ -639,11 +760,11 @@ const AdminView = (() => {
           <div class="field"><label>کاتی دەرچوون *</label><input id="m-rec-trec" type="time" value="${rec ? rec.record_time || '' : UI.nowTime()}"></div>
         </div>
         <div class="field-row">
-          <div class="field"><label>کێشی بار (کگم) *</label><input id="m-rec-wt" type="number" min="0" step="1" value="${rec ? UI.cleanInt(rec.cargo_weight) : ''}" placeholder="0"></div>
-          <div class="field"><label>ژمارەی پارچەکان *</label><input id="m-rec-pcs" type="number" min="0" step="1" value="${rec ? UI.cleanInt(rec.pieces_count) : ''}" placeholder="0"></div>
+          <div class="field"><label>کێشی بار (کگم) *</label><input id="m-rec-wt" type="text" inputmode="numeric" value="${rec && rec.cargo_weight ? (UI.hasOperator(rec.cargo_weight) ? rec.cargo_weight : UI.fmtNum(rec.cargo_weight)) : ''}" placeholder="0"></div>
+          <div class="field"><label>ژمارەی پارچەکان *</label><input id="m-rec-pcs" type="text" inputmode="numeric" value="${rec && rec.pieces_count ? (UI.hasOperator(rec.pieces_count) ? rec.pieces_count : UI.fmtNum(rec.pieces_count)) : ''}" placeholder="0"></div>
         </div>
-        <div class="field"><label>ژمارەی وەسڵ *</label><input id="m-rec-rcp" type="number" min="0" step="1" value="${rec ? UI.cleanInt(rec.receipt_number) : ''}" placeholder="0"></div>
-        <div class="field"><label>💰 پارەی هێنراوە (د.ع)</label><input id="m-rec-mny" type="number" min="0" step="1" inputmode="numeric" value="${rec && Number(rec.collected_money || 0) > 0 ? UI.cleanInt(rec.collected_money) : ''}" placeholder="بەتاڵ = تۆمار نەکراوە"></div>
+        <div class="field"><label>ژمارەی وەسڵ *</label><input id="m-rec-rcp" type="text" inputmode="numeric" value="${rec && rec.receipt_number ? (UI.hasOperator(rec.receipt_number) ? rec.receipt_number : UI.fmtNum(rec.receipt_number)) : ''}" placeholder="0"></div>
+        <div class="field"><label>💰 پارەی هێنراوە (د.ع)</label><input id="m-rec-mny" type="text" inputmode="numeric" value="${rec && Number(rec.collected_money || 0) > 0 ? UI.fmtNum(rec.collected_money) : ''}" placeholder="بەتاڵ = تۆمار نەکراوە"></div>
 
         <div class="date-range-compact" style="margin-top:10px">
           <div class="field compact-field"><label>📍 کاتی ناو زۆن</label><input type="time" id="m-rec-tin" value="${rec ? rec.in_zone_time || '' : ''}"></div>
@@ -670,16 +791,18 @@ const AdminView = (() => {
     UI.autocomplete($('#m-rec-zn-2', body), () => zones);
 
     Store.loadLists().then(ls => {
-      const vList = (ls?.vehicles || []).map(v => {
-        const val = v.vehicle_number || v.plate_number || v.number || v.name || v.vehicle || v.plate || Object.values(v)[1] || Object.values(v)[0];
-        return { label: String(val).trim() };
-      }).filter(v => v.label && v.label !== '[object Object]');
+      const vList = Store.visible('vehicles', ls?.vehicles).map(v => ({ label: Store.vehicleLabel(v) })).filter(v => v.label);
       UI.autocomplete($('#m-rec-veh', body), () => vList);
     }).catch(() => {});
 
     setupSecondFieldToggle(body, '#btn-toggle-dist2', '#wrap-dist2', '#m-rec-dist-2');
     setupSecondFieldToggle(body, '#btn-toggle-del2', '#wrap-del2', '#m-rec-del-2');
     setupSecondFieldToggle(body, '#btn-toggle-zone2', '#wrap-zone2', '#m-rec-zn-2');
+
+    UI.wireThousands($('#m-rec-wt', body), { allowOperators: true });
+    UI.wireThousands($('#m-rec-pcs', body), { allowOperators: true });
+    UI.wireThousands($('#m-rec-rcp', body), { allowOperators: true });
+    UI.wireThousands($('#m-rec-mny', body), { allowOperators: true });
 
     const { close } = UI.openModal({
       title: isEdit ? '✏️ دەستکاریکردنی تۆماری گەیاندن' : '➕ زیادکردنی باری نوێ',
@@ -743,6 +866,11 @@ const AdminView = (() => {
             if (invalid.length) {
               invalid.forEach(id => $(id, body)?.classList.add('invalid'));
               UI.toast('تکایە هەموو خانە سەرەکییەکان پڕ بکەرەوە', 'warning');
+              return;
+            }
+            if (data.collected_money > 99999999) {
+              $('#m-rec-mny', body)?.classList.add('invalid');
+              UI.toast('بڕی پارەی هێنراوە ناتوانێت لە ٩٩،٩٩٩،٩٩٩ زیاتر بێت', 'warning');
               return;
             }
 
@@ -1079,11 +1207,9 @@ const AdminView = (() => {
 
   /* ---------------- بەئێکسڵکردن بەپێی بەکارهێنەران (فرە-شیت) ---------------- */
 
-  function openExcelExportModal() {
-    if (typeof XLSX === 'undefined') {
-      UI.toast('کتێبخانەی ئێکسڵ بەردەست نییە، تکایە لاپەڕەکە نوێ بکەرەوە', 'error');
-      return;
-    }
+  async function openExcelExportModal() {
+    // کتێبخانەی ئێکسڵ خاوەنکار بار دەکرێت — تەنها کاتی هەناردە
+    try { await UI.ensureXlsx(); } catch (err) { UI.toast(err.message, 'error'); return; }
 
     let exportFrom = state.from || UI.daysAgoStr(6);
     let exportTo = state.to || UI.todayStr();
@@ -1264,10 +1390,10 @@ const AdminView = (() => {
                   ['سیستەمی گەیاندن — پوختەی گشتی بەکارهێنەران'],
                   ['مەودای بەروار:', dateRangeStr, '', 'بەرواری دەرهێنان:', `${UI.todayStr()} ${UI.nowTime()}`],
                   [],
-                  ['#', 'ناوی بەکارهێنەر', 'پیشە', 'ژمارەی گەشت', 'کۆی کێش (کگم)', 'کۆی پارچە', 'کۆی وەسڵ', 'کۆی پارەی هێنراوە (د.ع)']
+                  ['#', 'ناوی بەکارهێنەر', 'پیشە', 'ژمارەی گەشت', 'کۆی کێش (کگم)', 'کۆی پارچە', 'کۆی وەسڵ', 'کۆی پارەی هێنراوە (د.ع)', 'بەتەنیا دەرچوون', 'باری دووەم']
                 ];
 
-                let grandTrips = 0, grandWeight = 0, grandPieces = 0, grandReceipts = 0, grandMoney = 0;
+                let grandTrips = 0, grandWeight = 0, grandPieces = 0, grandReceipts = 0, grandMoney = 0, grandAlone = 0, grandSecond = 0;
 
                 const sortedSelectedUsers = state.users.filter(u => selectedUsers.has(u.username));
                 sortedSelectedUsers.forEach((u, idx) => {
@@ -1277,7 +1403,15 @@ const AdminView = (() => {
                   const uReceipts = uRecs.reduce((s, r) => s + UI.cleanInt(r.receipt_number), 0);
                   const uMoney = uRecs.reduce((s, r) => s + UI.cleanInt(r.collected_money), 0);
 
+                  // بەتەنیا دەرچوون: خانەی دابەشکار «بەتەنها» بێت، و خانەی سایەق تەنها ناوی ئەم یوسەرە بێت
+                  // (پاشگری «دوو» ڕێگەپێدراوە؛ «و» + ناوی یوسەرێکی تر = بەتەنها نییە)
+                  const uAlone = uRecs.filter(r => isAloneTrip(r) && UI.recMatchesUser(r, 'driver', u)).length;
+                  // باری دووەم: تۆمارێک کە یوسەر وەک سایەق باری دووەم (یان سێیەم) بردووە — هاوشێوەی دووگمەی «تەنها باری دووەم»
+                  const uSecond = uRecs.filter(r => UI.recMatchesUser(r, 'driver', u) && cargoIdxOf(r) >= 1).length;
+
                   grandTrips += uRecs.length;
+                  grandAlone += uAlone;
+                  grandSecond += uSecond;
                   grandWeight += uWeight;
                   grandPieces += uPieces;
                   grandReceipts += uReceipts;
@@ -1291,7 +1425,9 @@ const AdminView = (() => {
                     uWeight,
                     uPieces,
                     uReceipts,
-                    uMoney
+                    uMoney,
+                    uAlone,
+                    uSecond
                   ]);
                 });
 
@@ -1303,7 +1439,9 @@ const AdminView = (() => {
                   grandWeight,
                   grandPieces,
                   grandReceipts,
-                  grandMoney
+                  grandMoney,
+                  grandAlone,
+                  grandSecond
                 ]);
 
                 const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
@@ -1316,10 +1454,12 @@ const AdminView = (() => {
                   { wch: 16 },
                   { wch: 14 },
                   { wch: 14 },
-                  { wch: 24 }
+                  { wch: 24 },
+                  { wch: 16 },
+                  { wch: 14 }
                 ];
                 wsSummary['!merges'] = [
-                  { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
+                  { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
                   { s: { r: 1, c: 1 }, e: { r: 1, c: 2 } }
                 ];
 
@@ -1490,8 +1630,9 @@ const AdminView = (() => {
     if (!ok) return;
 
     try {
-      await API.Records.remove(rec.id);
-      UI.toast('تۆمارەکە سڕدرایەوە ✓', 'success');
+      const done = await Trash.guardDelete('record', rec, `${rec.driver || '—'} — ${rec.zone || '—'} — ${rec.record_date || '—'}`, () => API.Records.remove(rec.id));
+      if (!done) return;
+      UI.toast('تۆمارەکە سڕدرایەوە و چووە ڕەشکراوەکان ✓', 'success');
       await loadData({ silent: true });
     } catch (err) {
       UI.toast('هەڵە لە سڕینەوە: ' + err.message, 'error', 4200);
@@ -1521,6 +1662,7 @@ const AdminView = (() => {
         <div class="admin-header-row" style="margin-bottom:6px">
           <h3 style="font-size:0.96rem"><span class="sec-icon">${UI.icon('users')}</span> بەڕێوەبردنی بەکارهێنەران (خشتەی usersv2)</h3>
           <div style="display:flex;gap:8px">
+            ${CONFIG.GATEWAY_URL ? `<button type="button" class="btn btn-ghost btn-sm" id="adm-migrate-avatars-btn" title="گواستنەوەی وێنە کۆنەکان (base64) بۆ GitHub — لیستەکان خێراتر دەبێت">🌐 وێنەکان بۆ GitHub</button>` : ''}
             <button type="button" class="btn btn-ghost btn-sm" id="adm-toggle-pass">👁️ پشاندانی هەموو پاسۆڕدەکان</button>
             <button type="button" class="btn btn-primary btn-sm" id="admin-add-user-btn">➕ بەکارهێنەری نوێ</button>
           </div>
@@ -1551,12 +1693,13 @@ const AdminView = (() => {
       const rows = filteredUsers();
       grid.innerHTML = !rows.length ? `<div class="empty-state" style="grid-column:1/-1"><p>هیچ بەکارهێنەرێک نەدۆزرایەوە.</p></div>` :
         rows.map(u => `
-          <div class="user-card">
+          <div class="user-card${Store.isHidden('users', u.id) ? ' is-hidden' : ''}">
             <div class="user-card-top">
               ${UI.avatarHtml(u, 46)}
               <div class="user-card-info">
                 <strong>${UI.esc(u.username)}</strong>
                 <span class="chip">${UI.esc(u.profession || '—')}</span>
+                ${hiddenBadge('users', u.id)}
               </div>
             </div>
             <div class="user-card-meta">
@@ -1575,10 +1718,13 @@ const AdminView = (() => {
             </div>` : ''}
             <div class="user-card-actions">
               <button type="button" class="btn btn-ghost btn-sm adm-usr-view" data-user-id="${UI.esc(String(u.id))}" title="بینینی کارەکان">📋 کارەکانی</button>
+              ${hideBtnHtml('users', u.id, 'btn btn-ghost btn-sm')}
               <button type="button" class="btn btn-ghost btn-sm adm-usr-edit" data-id="${u.id}">✏️ دەستکاری</button>
               <button type="button" class="btn btn-danger btn-sm adm-usr-del" data-id="${u.id}">🗑️</button>
             </div>
           </div>`).join('');
+
+      bindHideButtons(grid);
 
       // بینینی کارەکانی بەکارهێنەر ڕاستەوخۆ — بە ئایدی یوسەر
       grid.querySelectorAll('.adm-usr-view').forEach(btn => {
@@ -1628,6 +1774,32 @@ const AdminView = (() => {
       updateUserCardsGrid();
     });
     $('#admin-add-user-btn', wrap).addEventListener('click', () => openUserModal(null, updateUserCardsGrid));
+
+    // گواستنەوەی وێنە کۆنەکان (dataURL) بۆ GitHub repo — لیستی یوسەرەکان خێراتر دەبێت
+    const migBtn = $('#adm-migrate-avatars-btn', wrap);
+    if (migBtn) migBtn.addEventListener('click', async () => {
+      const ok = await UI.confirmDialog(
+        'هەموو وێنە کۆنەکان کە وەک base64 لە داتابەیسەکەدا پاشەکەوتکراون، دەگوازرێنەوە بۆ GitHub repo ەکە و لە داتابەیسەکەدا تەنها ڕێڕەوەکەیان دەمێنێتەوە. بەردەوام دەبیت؟',
+        { okLabel: 'بەڵێ، بگوازەوە', cancelLabel: 'پاشگەزبوونەوە' }
+      );
+      if (!ok) return;
+      UI.btnLoading(migBtn, true, '...');
+      try {
+        const res = await API.migrateAvatars();
+        Store.invalidateLists();
+        const failed = (res && res.failed) || [];
+        const firstError = (res && res.firstError) || '';
+        const failedTxt = failed.length
+          ? ` — شکستی هێنا بۆ ${UI.fmtNum(failed.length)} وێنە${firstError ? ` (هۆکار: ${firstError})` : ''}`
+          : '';
+        UI.toast(`${UI.fmtNum(res.migrated || 0)} وێنە گواسترایەوە بۆ GitHub ✓${failedTxt}`, failed.length ? 'warning' : 'success', 8000);
+        updateUserCardsGrid();
+      } catch (err) {
+        UI.toast('هەڵە لە گواستنەوەی وێنەکان: ' + err.message, 'error', 8000);
+      } finally {
+        UI.btnLoading(migBtn, false);
+      }
+    });
 
     updateUserCardsGrid();
   }
@@ -1749,7 +1921,17 @@ const AdminView = (() => {
                   phone_number_2: phone2 || null,
                   location: location || null,
                 };
-                if (newAvatar !== undefined) patch.avatar_url = newAvatar;
+                if (newAvatar !== undefined) {
+                  if (newAvatar === null) {
+                    patch.avatar_url = null;
+                  } else if (CONFIG.GATEWAY_URL) {
+                    // وێنەکە دەچێتە ناو GitHub repo — لە داتابەیسەکەدا تەنها ڕێڕەوەکە دەمێنێتەوە
+                    const up = await API.uploadAvatar(user.id, newAvatar);
+                    patch.avatar_url = (up && up.avatar_url) ? up.avatar_url : newAvatar;
+                  } else {
+                    patch.avatar_url = newAvatar;
+                  }
+                }
                 await API.Lists.updateUser(user.id, patch);
                 const idx = state.users.findIndex(x => x.id === user.id);
                 if (idx !== -1) state.users[idx] = { ...state.users[idx], ...patch };
@@ -1761,7 +1943,15 @@ const AdminView = (() => {
                   phone_number_2: phone2 || null,
                   location: location || null,
                 };
-                if (newAvatar) row.avatar_url = newAvatar;
+                if (newAvatar) {
+                  if (CONFIG.GATEWAY_URL) {
+                    // یوسەری نوێ هێشتا ئایدی نییە — سەرەتا فایلەکە بۆ GitHub دەچێت، پاشان ڕێڕەوەکە لەگەڵ ڕیزەکە تۆمار دەکرێت
+                    const up = await API.uploadAvatar('', newAvatar);
+                    row.avatar_url = (up && up.avatar_url) ? up.avatar_url : newAvatar;
+                  } else {
+                    row.avatar_url = newAvatar;
+                  }
+                }
                 const inserted = await API.Lists.insertUser(row);
                 state.users.unshift(inserted || { id: Date.now(), ...row });
                 UI.toast('بەکارهێنەری نوێ زیادکرا ✓', 'success');
@@ -1792,10 +1982,11 @@ const AdminView = (() => {
     if (!ok) return;
 
     try {
-      await API.Lists.deleteUser(user.id);
+      const done = await Trash.guardDelete('user', user, `${user.username || '—'} (${user.profession || '—'})`, () => API.Lists.deleteUser(user.id));
+      if (!done) return;
       state.users = state.users.filter(x => x.id !== user.id);
       if (onDeleted) onDeleted();
-      UI.toast('بەکارهێنەر سڕدرایەوە ✓', 'success');
+      UI.toast('بەکارهێنەر سڕدرایەوە و چووە ڕەشکراوەکان ✓', 'success');
       await loadData({ silent: true });
     } catch (err) {
       UI.toast('هەڵە لە سڕینەوە: ' + err.message, 'error', 4200);
@@ -1828,13 +2019,16 @@ const AdminView = (() => {
       const rows = filteredZones();
       grid.innerHTML = !rows.length ? `<div class="empty-state" style="grid-column:1/-1"><p>هیچ زۆنێک نەدۆزرایەوە.</p></div>` :
         rows.map(z => `
-          <div class="zone-card">
-            <span class="zone-name">🗺️ ${UI.esc(z.name)}</span>
+          <div class="zone-card${Store.isHidden('zones', z.id) ? ' is-hidden' : ''}">
+            <span class="zone-name">🗺️ ${UI.esc(z.name)} ${hiddenBadge('zones', z.id)}</span>
             <div class="zone-actions">
+              ${hideBtnHtml('zones', z.id, 'btn-action-sm')}
               <button type="button" class="btn-action-sm btn-edit adm-zn-edit" data-id="${z.id}">✏️</button>
               <button type="button" class="btn-action-sm btn-del adm-zn-del" data-id="${z.id}">🗑️</button>
             </div>
           </div>`).join('');
+
+      bindHideButtons(grid);
 
       grid.querySelectorAll('.adm-zn-edit').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1869,9 +2063,40 @@ const AdminView = (() => {
       <form id="adm-zone-form" novalidate>
         <div class="field">
           <label>ناوی زۆن / ناوچە *</label>
-          <input type="text" id="mz-name" value="${zone ? UI.esc(zone.name) : ''}" placeholder="بۆ نموونە: هەولێر - بەختیاری">
+          <input type="text" id="mz-name" value="${zone ? UI.esc(zone.name) : ''}" placeholder="بۆ نموونە: هەولێر - بەختیاری" autocomplete="off">
+          <div id="mz-dup" style="margin-top:8px;font-size:0.85rem;line-height:1.7"></div>
         </div>
       </form>`;
+
+    /* — پشکنینی دووبارەبوون — بێ جیاوازی لە space، هێڵ (-)، ژمارەی عەرەبی/لاتینی و پیتە هاوشێوەکان — */
+    const key = v => UI.norm(v).replace(/[\s\-–—_.،,]+/g, '');
+    const otherZones = list => (list || []).filter(z => !isEdit || String(z.id) !== String(zone.id));
+    const findDup = (name, list) => {
+      const k = key(name);
+      if (!k) return { exact: null, similar: [] };
+      const zs = otherZones(list);
+      const exact = zs.find(z => key(z.name) === k) || null;
+      const similar = exact ? [] : zs.filter(z => {
+        const zk = key(z.name);
+        return zk && (zk.includes(k) || k.includes(zk));
+      }).slice(0, 5);
+      return { exact, similar };
+    };
+    const dupBox = () => $('#mz-dup', body);
+    const showDup = () => {
+      const box = dupBox();
+      if (!box) return;
+      const { exact, similar } = findDup($('#mz-name', body).value, state.zones);
+      if (exact) {
+        box.innerHTML = `<span style="color:var(--danger,#ef4444)">⛔ ئەم زۆنە پێشتر تۆمار کراوە: «${UI.esc(exact.name)}»</span>`;
+      } else if (similar.length) {
+        box.innerHTML = `<span style="color:var(--warning,#f59e0b)">⚠️ زۆنی هاوشێوە هەیە:</span> ` +
+          similar.map(z => `<span class="chip">${UI.esc(z.name)}</span>`).join(' ');
+      } else {
+        box.innerHTML = '';
+      }
+    };
+    setTimeout(() => { $('#mz-name', body)?.addEventListener('input', showDup); }, 0);
 
     const { close } = UI.openModal({
       title: isEdit ? '✏️ دەستکاریکردنی زۆن' : '➕ زیادکردنی زۆنی نوێ',
@@ -1889,6 +2114,15 @@ const AdminView = (() => {
 
             UI.btnLoading(subBtn, true, 'پاشەکەوت دەکرێت...');
             try {
+              // نوێترین لیست لە سێرڤەر — بۆ ئەوەی ئەو زۆنانەی لە ئامێرێکی تر زیاد کراون بپشکنرێن
+              const fresh = await Store.loadLists(true);
+              const dup = findDup(name, fresh.zones || state.zones);
+              if (dup.exact) {
+                state.zones = fresh.zones || state.zones;
+                showDup();
+                UI.toast(`ئەم زۆنە پێشتر تۆمار کراوە: «${dup.exact.name}»`, 'warning', 4200);
+                return;
+              }
               if (isEdit) {
                 await API.Lists.updateZone(zone.id, { name });
                 UI.toast('ناوی زۆن نوێ کرایەوە ✓', 'success');
@@ -1916,11 +2150,323 @@ const AdminView = (() => {
     if (!ok) return;
 
     try {
-      await API.Lists.deleteZone(zone.id);
-      UI.toast('زۆن سڕدرایەوە ✓', 'success');
+      const done = await Trash.guardDelete('zone', zone, zone.name || '—', () => API.Lists.deleteZone(zone.id));
+      if (!done) return;
+      UI.toast('زۆن سڕدرایەوە و چووە ڕەشکراوەکان ✓', 'success');
       await loadData({ silent: true });
     } catch (err) {
       UI.toast('هەڵە لە سڕینەوە: ' + err.message, 'error', 4200);
+    }
+  }
+
+
+  /* =========================================================
+   *  ٤. بەشی سەیارەکان (vehiclesv2)
+   * ========================================================= */
+  function renderVehiclesTab(wrap) {
+    wrap.innerHTML = `
+      <section class="card filter-card">
+        <div class="admin-header-row" style="margin-bottom:6px">
+          <h3 style="font-size:0.96rem"><span class="sec-icon">${UI.icon('truck')}</span> بەڕێوەبردنی ژمارەی سەیارەکان (خشتەی vehiclesv2)</h3>
+          <button type="button" class="btn btn-primary btn-sm" id="admin-add-veh-btn">➕ سەیارەی نوێ</button>
+        </div>
+        <div class="field">
+          <label>گەڕان لە سەیارەکان</label>
+          <input type="search" id="adm-veh-search" placeholder="ژمارەی سەیارە بنووسە..." value="${UI.esc(state.vehicleSearch)}">
+        </div>
+      </section>
+      <div class="zone-cards-grid" id="adm-veh-cards-grid"></div>`;
+
+    function updateGrid() {
+      const grid = $('#adm-veh-cards-grid', wrap);
+      if (!grid) return;
+      const rows = filteredVehicles();
+      grid.innerHTML = state.vehiclesError && !state.vehicles.length
+        ? `<div class="empty-state" style="grid-column:1/-1"><div class="empty-ico">⚠️</div><p>نەتوانرا ژمارەی سەیارەکان لە Supabase بهێنرێت: ${UI.esc(state.vehiclesError)}</p></div>`
+        : !rows.length ? `<div class="empty-state" style="grid-column:1/-1"><p>هیچ سەیارەیەک نەدۆزرایەوە.</p></div>` :
+        rows.map(r => `
+          <div class="zone-card${Store.isHidden('vehicles', r.id) ? ' is-hidden' : ''}">
+            <span class="zone-name">🚐 ${UI.esc(vehicleLabel(r))} ${hiddenBadge('vehicles', r.id)}</span>
+            <div class="zone-actions">
+              ${hideBtnHtml('vehicles', r.id, 'btn-action-sm')}
+              <button type="button" class="btn-action-sm btn-edit adm-veh-edit" data-id="${UI.esc(String(r.id))}">✏️</button>
+              <button type="button" class="btn-action-sm btn-del adm-veh-del" data-id="${UI.esc(String(r.id))}">🗑️</button>
+            </div>
+          </div>`).join('');
+
+      bindHideButtons(grid);
+      const find = btn => state.vehicles.find(x => String(x.id) === btn.dataset.id);
+      grid.querySelectorAll('.adm-veh-edit').forEach(btn => btn.addEventListener('click', () => {
+        const r = find(btn); if (r) openVehicleModal(r);
+      }));
+      grid.querySelectorAll('.adm-veh-del').forEach(btn => btn.addEventListener('click', () => {
+        const r = find(btn); if (r) deleteVehicle(r);
+      }));
+    }
+
+    $('#adm-veh-search', wrap).addEventListener('input', e => {
+      state.vehicleSearch = e.target.value;
+      updateGrid();
+    });
+    $('#admin-add-veh-btn', wrap).addEventListener('click', () => openVehicleModal(null));
+    updateGrid();
+  }
+
+  function openVehicleModal(veh = null) {
+    const isEdit = !!veh;
+    const body = document.createElement('div');
+    body.innerHTML = `
+      <form id="adm-veh-form" novalidate>
+        <div class="field">
+          <label>ژمارەی سەیارە *</label>
+          <input type="text" id="mv-number" value="${veh ? UI.esc(vehicleLabel(veh)) : ''}" placeholder="بۆ نموونە: 12345 هەولێر" autocomplete="off">
+          <div id="mv-dup" style="margin-top:8px;font-size:0.85rem;line-height:1.7"></div>
+        </div>
+      </form>`;
+
+    // پشکنینی دووبارەبوون — بێ جیاوازی لە space و هێڵ و ژمارەی عەرەبی/لاتینی
+    const key = x => UI.norm(x).replace(/[\s\-–—_.،,]+/g, '');
+    const others = list => (list || []).filter(r => !isEdit || String(r.id) !== String(veh.id));
+    const findDup = (name, list) => {
+      const k = key(name);
+      if (!k) return { exact: null, similar: [] };
+      const rs = others(list);
+      const exact = rs.find(r => key(vehicleLabel(r)) === k) || null;
+      const similar = exact ? [] : rs.filter(r => {
+        const rk = key(vehicleLabel(r));
+        return rk && (rk.includes(k) || k.includes(rk));
+      }).slice(0, 5);
+      return { exact, similar };
+    };
+    const showDup = () => {
+      const box = $('#mv-dup', body);
+      if (!box) return;
+      const { exact, similar } = findDup($('#mv-number', body).value, state.vehicles);
+      if (exact) box.innerHTML = `<span style="color:var(--danger,#ef4444)">⛔ ئەم ژمارەیە پێشتر تۆمار کراوە: «${UI.esc(vehicleLabel(exact))}»</span>`;
+      else if (similar.length) box.innerHTML = `<span style="color:var(--warning,#f59e0b)">⚠️ ژمارەی هاوشێوە هەیە:</span> ` + similar.map(r => `<span class="chip">${UI.esc(vehicleLabel(r))}</span>`).join(' ');
+      else box.innerHTML = '';
+    };
+    setTimeout(() => { $('#mv-number', body)?.addEventListener('input', showDup); }, 0);
+
+    const { close } = UI.openModal({
+      title: isEdit ? '✏️ دەستکاریکردنی سەیارە' : '➕ زیادکردنی سەیارەی نوێ',
+      size: 'wide',
+      body,
+      actions: [
+        { label: 'پاشگەزبوونەوە', className: 'btn-ghost', onClick: () => close() },
+        {
+          label: isEdit ? 'پاشەکەوتکردن' : 'تۆمارکردن',
+          className: 'btn-primary',
+          onClick: async (backdrop) => {
+            const subBtn = backdrop.querySelector('.modal-foot .btn-primary');
+            const number = $('#mv-number', body).value.trim();
+            if (!number) { UI.toast('تکایە ژمارەی سەیارە بنووسە', 'warning'); return; }
+
+            UI.btnLoading(subBtn, true, 'پاشەکەوت دەکرێت...');
+            try {
+              const fresh = await Store.loadLists(true);
+              const dup = findDup(number, fresh.vehicles || state.vehicles);
+              if (dup.exact) {
+                state.vehicles = fresh.vehicles || state.vehicles;
+                showDup();
+                UI.toast(`ئەم ژمارەیە پێشتر تۆمار کراوە: «${vehicleLabel(dup.exact)}»`, 'warning', 4200);
+                return;
+              }
+              const col = vehicleKey();
+              if (isEdit) {
+                await API.Lists.updateVehicle(veh.id, { [col]: number });
+                UI.toast('ژمارەی سەیارە نوێ کرایەوە ✓', 'success');
+              } else {
+                await API.Lists.insertVehicle({ [col]: number });
+                UI.toast('سەیارەی نوێ زیادکرا ✓', 'success');
+              }
+              close();
+              await loadData({ silent: true });
+            } catch (err) {
+              UI.toast('هەڵە لە پاشەکەوتکردن: ' + err.message, 'error', 4200);
+            } finally {
+              UI.btnLoading(subBtn, false);
+            }
+          }
+        }
+      ]
+    });
+  }
+
+  async function deleteVehicle(veh) {
+    const ok = await UI.confirmDialog(`دڵنیاییت لە سڕینەوەی سەیارەی «${vehicleLabel(veh)}»؟`, {
+      danger: true, okLabel: 'بەڵێ، بسڕەوە', cancelLabel: 'پاشگەزبوونەوە'
+    });
+    if (!ok) return;
+    try {
+      const done = await Trash.guardDelete('vehicle', veh, vehicleLabel(veh) || '—', () => API.Lists.deleteVehicle(veh.id));
+      if (!done) return;
+      UI.toast('سەیارە سڕدرایەوە و چووە ڕەشکراوەکان ✓', 'success');
+      await loadData({ silent: true });
+    } catch (err) {
+      UI.toast('هەڵە لە سڕینەوە: ' + err.message, 'error', 4200);
+    }
+  }
+
+  /* =========================================================
+   *  ٥. بەشی ڕەشکراوەکان — باک ئەپی هەموو داتایەکی سڕاوە (٣٠ ڕۆژ)
+   * ========================================================= */
+
+  const trashFmtDate = ts => {
+    const d = new Date(ts);
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} • ${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+
+  function trashSummary(item) {
+    const d = item.data || {};
+    if (item.kind === 'record') {
+      return [
+        d.driver && `شۆفێر: ${d.driver}`,
+        d.distributor && `دابەشکار: ${d.distributor}`,
+        d.zone && `زۆن: ${d.zone}`,
+        d.vehicle && `سەیارە: ${d.vehicle}`,
+        d.record_date && `بەروار: ${d.record_date}`,
+      ].filter(Boolean).join(' — ') || item.label;
+    }
+    if (item.kind === 'user') return [d.username, d.profession && `(${d.profession})`, d.phone_number_1].filter(Boolean).join(' ') || item.label;
+    return item.label || '—';
+  }
+
+  function renderTrashTab(wrap) {
+    wrap.innerHTML = `
+      <section class="card filter-card">
+        <div class="admin-header-row" style="margin-bottom:6px">
+          <h3 style="font-size:0.96rem"><span class="sec-icon">${UI.icon('trash')}</span> ڕەشکراوەکان</h3>
+          <button type="button" class="btn btn-danger btn-sm" id="trash-empty-btn">🗑 بەتاڵکردنی هەموو</button>
+        </div>
+        <p class="hint" style="margin:0 0 8px">هەر داتایەک بسڕدرێتەوە لێرە باک ئەپ دەکرێت و دوای ${Trash.RETENTION_DAYS} ڕۆژ بە خۆکاری بە یەکجاری دەسڕدرێتەوە. دەتوانیت بیگەڕێنیتەوە یان پێش کاتەکە بە یەکجاری بیسڕیتەوە.</p>
+        <div class="field-row">
+          <div class="field" style="margin-bottom:0"><input type="search" id="trash-search" placeholder="گەڕان لە ڕەشکراوەکان..." autocomplete="off" value="${UI.esc(state.trashSearch)}"></div>
+          <div class="field" style="margin-bottom:0">
+            <select id="trash-kind">
+              <option value="">هەموو جۆرەکان</option>
+              ${Object.entries(Trash.KINDS).map(([k, v]) => `<option value="${k}" ${state.trashKind === k ? 'selected' : ''}>${v.label}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </section>
+      <div id="trash-list"></div>`;
+
+    $('#trash-search', wrap).addEventListener('input', e => { state.trashSearch = e.target.value; renderTrashList(wrap); });
+    $('#trash-kind', wrap).addEventListener('change', e => { state.trashKind = e.target.value; renderTrashList(wrap); });
+    $('#trash-empty-btn', wrap).addEventListener('click', async () => {
+      const n = Trash.list().length;
+      if (!n) { UI.toast('ڕەشکراوەکان بەتاڵە', 'info'); return; }
+      const ok = await UI.confirmDialog(`دڵنیاییت لە سڕینەوەی یەکجاریی هەموو ${UI.fmtNum(n)} داتای ڕەشکراوەکان؟\nئەم کردارە ناگەڕێتەوە و هیچ شتێک نامێنێتەوە!`, {
+        danger: true, okLabel: 'بەڵێ، بە یەکجاری بیسڕەوە', cancelLabel: 'پاشگەزبوونەوە'
+      });
+      if (!ok) return;
+      Trash.clear();
+      UI.toast('هەموو ڕەشکراوەکان بە یەکجاری سڕدرانەوە ✓', 'success');
+      renderContent();
+    });
+
+    renderTrashList(wrap);
+  }
+
+  function renderTrashList(wrap) {
+    const box = $('#trash-list', wrap);
+    if (!box) return;
+    const q = norm(state.trashSearch);
+    let items = Trash.list();
+    if (state.trashKind) items = items.filter(x => x.kind === state.trashKind);
+    if (q) items = items.filter(x => norm(trashSummary(x) + ' ' + (Trash.KINDS[x.kind]?.label || '')).includes(q));
+
+    if (!items.length) {
+      box.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-ico">🗑</div>
+          <p>${(q || state.trashKind) ? 'هیچ داتایەک نەدۆزرایەوە بۆ ئەم گەڕانە.' : 'ڕەشکراوەکان بەتاڵە.'}</p>
+        </div>`;
+      return;
+    }
+
+    box.innerHTML = `
+      <div class="card table-card">
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>جۆر</th><th>زانیاری</th><th>کاتی سڕینەوە</th><th>ماوە</th><th>کردار</th></tr></thead>
+            <tbody>
+              ${items.map(x => {
+                const k = Trash.KINDS[x.kind] || { label: x.kind, icon: '📄' };
+                const left = Trash.daysLeft(x);
+                return `<tr data-tid="${UI.esc(x.tid)}">
+                  <td data-label="جۆر" class="nowrap">${k.icon} ${UI.esc(k.label)}</td>
+                  <td data-label="زانیاری">${UI.esc(trashSummary(x))}</td>
+                  <td data-label="کاتی سڕینەوە" class="nowrap">${UI.esc(trashFmtDate(x.deletedAt))}</td>
+                  <td data-label="ماوە" class="nowrap" style="${left <= 3 ? 'color:#ef4444;font-weight:700' : ''}">${UI.fmtNum(left)} ڕۆژ</td>
+                  <td data-label="کردار" class="nowrap">
+                    <button type="button" class="btn btn-ghost btn-sm" data-trash-restore="${UI.esc(x.tid)}">↩ گەڕاندنەوە</button>
+                    <button type="button" class="btn btn-danger btn-sm" data-trash-purge="${UI.esc(x.tid)}">✖ سڕینەوەی یەکجاری</button>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+
+    box.querySelectorAll('[data-trash-restore]').forEach(b => b.addEventListener('click', () => restoreTrashItem(b.dataset.trashRestore, b)));
+    box.querySelectorAll('[data-trash-purge]').forEach(b => b.addEventListener('click', () => purgeTrashItem(b.dataset.trashPurge)));
+  }
+
+  async function purgeTrashItem(tid) {
+    const item = Trash.list().find(x => x.tid === tid);
+    if (!item) return;
+    const ok = await UI.confirmDialog(`دڵنیاییت لە سڕینەوەی یەکجاریی «${trashSummary(item)}»؟\nئەم کردارە ناگەڕێتەوە و هیچ شتێک نامێنێتەوە!`, {
+      danger: true, okLabel: 'بەڵێ، بە یەکجاری بیسڕەوە', cancelLabel: 'پاشگەزبوونەوە'
+    });
+    if (!ok) return;
+    Trash.remove(tid);
+    UI.toast('بە یەکجاری سڕدرایەوە ✓', 'success');
+    renderContent();
+  }
+
+  async function restoreTrashItem(tid, btn) {
+    const item = Trash.list().find(x => x.tid === tid);
+    if (!item) return;
+    const d = item.data || {};
+
+    // ڕێگری لە دووبارەبوونەوە: ئەگەر هەمان ناو/ژمارە ئێستا هەیە
+    const dupMsg = (() => {
+      if (item.kind === 'user' && state.users.some(u => norm(u.username) === norm(d.username))) return `بەکارهێنەرێک بە ناوی «${d.username}» ئێستا هەیە`;
+      if (item.kind === 'zone' && state.zones.some(z => norm(z.name) === norm(d.name))) return `زۆنێک بە ناوی «${d.name}» ئێستا هەیە`;
+      if (item.kind === 'vehicle' && state.vehicles.some(v => norm(vehicleLabel(v)) === norm(vehicleLabel(d)))) return `سەیارەیەک بە ژمارەی «${vehicleLabel(d)}» ئێستا هەیە`;
+      return '';
+    })();
+    if (dupMsg) { UI.toast(dupMsg + ' — ناتوانرێت بگەڕێندرێتەوە', 'warning', 4500); return; }
+
+    const insertFn = {
+      record: x => API.Records.insert(x),
+      user: x => API.Lists.insertUser(x),
+      zone: x => API.Lists.insertZone(x),
+      vehicle: x => API.Lists.insertVehicle(x),
+    }[item.kind];
+    if (!insertFn) return;
+
+    if (btn) UI.btnLoading(btn, true, '...');
+    try {
+      try {
+        await insertFn({ ...d });          // سەرەتا بە هەمان ئایدی (بۆ ئەوەی پەیوەندییەکان نەپچڕێن)
+      } catch (err) {
+        if (d.id === undefined) throw err;
+        const { id, ...rest } = d;          // ئەگەر ئایدییەکە وەرنەگیرا، بە ئایدی نوێ
+        await insertFn(rest);
+      }
+      Trash.remove(tid);
+      if (item.kind !== 'record' && Store.invalidateLists) Store.invalidateLists();
+      UI.toast('بە سەرکەوتوویی گەڕێندرایەوە ✓', 'success');
+      await loadData({ silent: true });
+    } catch (err) {
+      UI.toast('هەڵە لە گەڕاندنەوە: ' + err.message, 'error', 4500);
+    } finally {
+      if (btn) UI.btnLoading(btn, false);
     }
   }
 
