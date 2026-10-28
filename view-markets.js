@@ -603,6 +603,8 @@ const MarketsView = (() => {
 
   /* ---------------- کردنەوەی لۆکەیشنی ماڕکێت لە ئەپەکانی نەخشە (Maps.me / Google Maps / Geo) ---------------- */
 
+  /* ---------------- کردنەوەی لۆکەیشنی ماڕکێت لە ئەپەکانی نەخشە (Google Maps / Geo) ---------------- */
+
   function openLocationApp(market) {
     if (!market) return;
     const lat = market.latitude !== null && market.latitude !== undefined ? parseFloat(market.latitude) : null;
@@ -611,25 +613,23 @@ const MarketsView = (() => {
     const code = String(market.account_code || '').trim();
     const label = code ? `${name} (#${code})` : name;
 
-    // پشکنینی پۆوتان: ئەگەر تۆمار نەکرابێت
+    // ئەگەر لۆکەیشن تۆمار نەکرابێت — ڕاستەوخۆ فۆڕمی دەستکاری بکاتەوە بەبێ پرسیار
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      UI.confirmDialog(`📍 ئەم ماڕکێتە (#${code} - ${name}) تا ئێستا لۆکەیشنی بۆ دیاری نەکراوە.\n\nئایا دەتەوێت ئێستا شوێنەکەی لەسەر نەخشە دیاری بکەیت؟`, {
-        okLabel: '📍 دیاریکردنی شوێن',
-        cancelLabel: 'داخستن'
-      }).then(ok => {
-        if (ok) openAddEditModal(market);
-      });
+      openAddEditModal(market);
       return;
     }
 
-    // ئەگەر بەکارهێنەر پێشتر ئەپێکی دڵخوازی هەڵبژاردبێت:
+    // پرفەرەنسی پێشتر هەڵبژێردراو — ڕاستەوخۆ بچە بەبێ هیچ مەسج یان مۆداڵ
     let savedPref = null;
-    try { savedPref = localStorage.getItem('dlv_preferred_map_app'); } catch (_) {}
+    try {
+      savedPref = localStorage.getItem('dlv_preferred_map_app');
+      if (savedPref === 'mapsme') {
+        localStorage.removeItem('dlv_preferred_map_app');
+        savedPref = null;
+      }
+    } catch (_) {}
 
-    if (savedPref === 'mapsme') {
-      launchMapsMe(lat, lon, label);
-      return;
-    } else if (savedPref === 'google') {
+    if (savedPref === 'google') {
       launchGoogleMaps(lat, lon);
       return;
     } else if (savedPref === 'geo') {
@@ -637,32 +637,8 @@ const MarketsView = (() => {
       return;
     }
 
-    // پیشاندانی مۆداڵی هەڵبژاردنی ئەپەکان
+    // هیچ پرفەرەنسێک نییە — پیشاندانی مۆداڵی هەڵبژاردن
     showMapChooserModal(market, lat, lon, label);
-  }
-
-  function launchMapsMe(lat, lon, label) {
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    const labelEnc = encodeURIComponent(label);
-    const mapsmeScheme = `mapsme://map?v=1&ll=${lat},${lon}&n=${labelEnc}`;
-
-    if (isAndroid) {
-      // لە ئەندرۆیددا ڕێگای Intent بەکاردەهێنرێت بۆ ئەوەی ڕاستەوخۆ ئەپی Maps.me بکاتەوە
-      const intentUrl = `intent://map?v=1&ll=${lat},${lon}&n=${labelEnc}#Intent;scheme=mapsme;package=com.mapswithme.maps.pro;S.browser_fallback_url=${encodeURIComponent(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`)};end`;
-      try {
-        window.location.href = intentUrl;
-      } catch (_) {
-        window.location.href = mapsmeScheme;
-      }
-    } else {
-      // بۆ iOS یان ئامێرەکانی تر
-      const link = document.createElement('a');
-      link.href = mapsmeScheme;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
   }
 
   function launchGoogleMaps(lat, lon) {
@@ -687,20 +663,10 @@ const MarketsView = (() => {
         </div>
 
         <div style="font-size: 0.9rem; font-weight: 700; color: var(--text); margin-bottom: 8px;">
-          ئەپێک هەڵبژێرە بۆ کردنەوەی شوێنەکە:
+          ئەپێک هەڵبژێرە بۆ کردنەوەی شوێنەکە لەسەر نەخشە:
         </div>
 
         <div class="mkt-map-chooser-list">
-          <!-- دوگمەی Maps.me -->
-          <button type="button" class="mkt-map-app-btn mapsme" id="mkt-btn-app-mapsme">
-            <div class="mkt-map-app-icon">🗺️</div>
-            <div class="mkt-map-app-details">
-              <span class="mkt-map-app-title">ئەپی MAPS.ME</span>
-              <span class="mkt-map-app-sub">بۆ نەخشەی ئۆفلاین لە ئەپی Maps.me</span>
-            </div>
-            <span>➜</span>
-          </button>
-
           <!-- دوگمەی Google Maps -->
           <button type="button" class="mkt-map-app-btn google" id="mkt-btn-app-google">
             <div class="mkt-map-app-icon">📍</div>
@@ -715,7 +681,7 @@ const MarketsView = (() => {
           <button type="button" class="mkt-map-app-btn geo" id="mkt-btn-app-geo">
             <div class="mkt-map-app-icon">🧭</div>
             <div class="mkt-map-app-details">
-              <span class="mkt-map-app-title">هەموو ئەپەکانی مۆبایل (Geo)</span>
+              <span class="mkt-map-app-title">هەموو ئەپەکانی مۆبایل (Geo Navigation)</span>
               <span class="mkt-map-app-sub">سیستەمی مۆبایل دەپرسێت بە کام ئەپ دەیکەیتەوە</span>
             </div>
             <span>➜</span>
@@ -739,14 +705,6 @@ const MarketsView = (() => {
     });
 
     const chk = modalBody.querySelector('#mkt-save-pref-app');
-
-    modalBody.querySelector('#mkt-btn-app-mapsme')?.addEventListener('click', () => {
-      try {
-        if (chk && chk.checked) localStorage.setItem('dlv_preferred_map_app', 'mapsme');
-      } catch (_) {}
-      close();
-      launchMapsMe(lat, lon, label);
-    });
 
     modalBody.querySelector('#mkt-btn-app-google')?.addEventListener('click', () => {
       try {
@@ -912,14 +870,22 @@ const MarketsView = (() => {
                 ` : ''}
               </div>
 
-              <!-- ویندۆی پێشەوەی ماڕکێت — بە داگرتنی دەچێتە ئەپی Maps.me -->
-              <div class="mkt-card-front" data-code="${UI.esc(code)}" title="داگرە بۆ بینینی لۆکەیشن لە ئەپی Maps.me">
+              <!-- ویندۆی پێشەوەی ماڕکێت — ڕاکێشان بۆ چەپ و ڕاست -->
+              <div class="mkt-card-front" data-code="${UI.esc(code)}" title="ڕاکێشان بۆ دەستکاری یان سڕینەوە">
                 
                 <!-- دێڕی یەکەم: #کۆدی ماڕکێت تەنیشتی ناوی ماڕکێت -->
                 <div class="mkt-card-row-top">
                   <span class="mkt-card-code">#${UI.esc(code)}</span>
                   <span class="mkt-card-name">${UI.esc(name)}</span>
-                  ${hasLoc ? `<span class="mkt-card-mapsme-badge">🗺️ Maps.me</span>` : `<span class="mkt-card-no-gps">بێ GPS</span>`}
+                  ${hasLoc ? `
+                    <button type="button" class="mkt-card-loc-btn" data-action="open-map" title="کردنەوەی شوێن لەسەر نەخشە">
+                      📍 نەخشە
+                    </button>
+                  ` : `
+                    <button type="button" class="mkt-card-no-gps" data-action="open-map" title="دیاریکردنی شوێن لەسەر نەخشە">
+                      بێ GPS
+                    </button>
+                  `}
                 </div>
 
                 <!-- دێڕی دووەم: لەژێر ناوی ماڕکێت زۆن پاشان ژمارە تەلەفۆن -->
@@ -1205,37 +1171,42 @@ const MarketsView = (() => {
             if (activeOpenCard === front) activeOpenCard = null;
           }
         } else if (!isVertical && movedDistance < 14 && elapsed < 650) {
-          // داگرتنی ئاسایی (Tap)
+          // داگرتنی ئاسایی (Tap) لەسەر کارتی کراوە تەنها کارتی کراوە دادەخات
           if (front.classList.contains('is-open')) {
             front.style.transform = '';
             delete front.dataset.offset;
             front.classList.remove('is-open');
             activeOpenCard = null;
-          } else {
-            openLocationApp(market);
           }
         }
       };
 
       front.addEventListener('pointerdown', onPointerDown);
+    });
 
-      // بەستنی کلیکی ڕاستەوخۆ بۆ دڵنیابوونەوە لە سەرکەوتنی 100%ی داگرتن
-      front.addEventListener('click', e => {
-        if (e.target.closest('a[href^="tel:"], .mkt-card-phone')) return;
-        if (front.classList.contains('is-open')) return;
-        if (isDragging || movedDistance >= 14) return;
-        openLocationApp(market);
+    // کلیک لەسەر دوگمەی نەخشە (📍 نەخشە یان بێ GPS) بۆ کردنەوەی شوێن لە ئەپەکانی نەخشە
+    root.querySelectorAll('[data-action="open-map"]').forEach(btn => {
+      btn.addEventListener('pointerdown', e => {
+        // ڕێگری لە دەستپێکردنی swipe یان جووڵاندنی کارتەکە
+        e.stopPropagation();
       });
-
-      // کلیک لەسەر باجی نەخشە بە جیاواز
-      const badge = front.querySelector('.mkt-card-mapsme-badge, .mkt-card-no-gps');
-      if (badge) {
-        badge.style.cursor = 'pointer';
-        badge.addEventListener('click', e => {
-          e.stopPropagation();
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        e.preventDefault();
+        closeActiveCard();
+        const item = btn.closest('.mkt-swipe-item');
+        const code = item ? item.getAttribute('data-code') : null;
+        const market = state.searchResults.find(m => String(m.account_code) === String(code)) ||
+                       state.localMarkets.get(code);
+        if (market) {
           openLocationApp(market);
-        });
-      }
+        }
+      });
+    });
+
+    // ڕێگری لە swipe کاتێک پەیوەندی بە ژمارە تەلەفۆن دەکرێت
+    root.querySelectorAll('.mkt-card-phone').forEach(el => {
+      el.addEventListener('pointerdown', e => e.stopPropagation());
     });
 
     // داگرتن لە هەر شوێنێکی تر کارتی کراوە دابخات

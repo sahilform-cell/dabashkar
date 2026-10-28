@@ -3909,7 +3909,7 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
   background: #dc2626; /* سوور بۆ سڕینەوە */
 }
 
-/* کارتی پێشەوە — بە داگرتنی دەچێتە ناو ئەپی ماپسمی */
+/* کارتی پێشەوە — ڕاکێشان بۆ چەپ و ڕاست */
 .mkt-card-front {
   position: relative;
   z-index: 2;
@@ -3918,7 +3918,7 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
   display: flex;
   flex-direction: column;
   gap: 7px;
-  cursor: pointer;
+  cursor: grab;
   touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
@@ -3926,6 +3926,7 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
 }
 
 .mkt-swipe-item.is-dragging .mkt-card-front {
+  cursor: grabbing !important;
   transition: none !important;
 }
 
@@ -3966,17 +3967,55 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
   word-break: break-word;
 }
 
-.mkt-card-mapsme-badge {
-  font-size: 0.72rem;
+.mkt-card-loc-btn {
+  font-size: 0.76rem;
   font-weight: 700;
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.28);
-  padding: 2px 8px;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  padding: 4px 10px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  line-height: 1.2;
+}
+
+.mkt-card-loc-btn:hover {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+  transform: scale(1.05);
+}
+
+.mkt-card-loc-btn:active {
+  transform: scale(0.96);
+}
+
+.mkt-card-no-gps {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.1);
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  padding: 4px 9px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  line-height: 1.2;
+}
+
+.mkt-card-no-gps:hover {
+  background: #d97706;
+  color: #fff;
+  border-color: #d97706;
 }
 
 /* دێڕی دووەم: لەژێر ناوی ماڕکێت زۆن پاشان ژمارە تەلەفۆن */
@@ -4233,11 +4272,6 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
   justify-content: center;
   font-size: 22px;
   flex-shrink: 0;
-}
-
-.mkt-map-app-btn.mapsme .mkt-map-app-icon {
-  background: #10b981;
-  color: #fff;
 }
 
 .mkt-map-app-btn.google .mkt-map-app-icon {
