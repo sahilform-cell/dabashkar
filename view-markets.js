@@ -15,7 +15,8 @@ const MarketsView = (() => {
     search: '',
     searching: false,
     sortMode: 'code-asc', // 'code-asc' | 'code-desc' | 'name-asc'
-    localMarkets: new Map() // ماڕکێتە نوێکراوەکان یان دەستکاریکراوەکانی ئەم دانیشتنە
+    localMarkets: new Map(), // ماڕکێتە نوێکراوەکان یان دەستکاریکراوەکانی ئەم دانیشتنە
+    activeGroup: [] // گرووپی ماڕکێتە هەڵبژێردراوەکان بۆ کامێرا و دروستکردنی فایلی KMZ
   };
 
   /* ---------------- سۆڕتکردنی ماڕکێتەکان (بەسۆڕتی کۆدەکان) ---------------- */
@@ -741,47 +742,31 @@ const MarketsView = (() => {
     if (!container) return;
 
     container.innerHTML = `
-      <div class="settings-view markets-view mkt-custom-page" style="max-width: 960px; margin: 0 auto; padding: 20px 14px;">
+      <div class="markets-view mkt-custom-page" style="max-width: 960px; margin: 0 auto; padding: 0 14px 20px;">
 
-        <!-- تەختەی کرداری خێرا و گەڕان لەسەر پەڕەکە -->
-        <div class="card" style="margin-bottom: 20px; padding: 18px 20px;">
-          
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px;">
-            <div style="display:flex; align-items:center; gap:10px;">
-              <div style="width: 38px; height: 38px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 20px;">
-                🏪
-              </div>
-              <div>
-                <h3 style="margin:0; font-size: 1.15rem; font-weight: 800;">فۆڕمی ماڕکێتەکان</h3>
-                <span style="font-size: 0.78rem; color: var(--muted);">گەڕانی خێرا و دەستکاری بەبێ بارگرانی</span>
-              </div>
-            </div>
-
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <button type="button" class="btn btn-primary btn-sm" id="mkt-page-new-btn">
-                ➕ ماڕکێتی نوێ
-              </button>
-              <button type="button" class="btn btn-ghost btn-sm" id="mkt-page-refresh-btn" title="نوێکردنەوە لە سەب بەیس">
-                🔄 نوێکردنەوە
-              </button>
-            </div>
-          </div>
-
-          <!-- گەڕانی خێرا لەسەر پەڕە -->
+        <!-- خانەی گەڕان لکێندراوە بە باڕی سەرەوە بەبێ تێکست و دوگمە زیادەکان -->
+        <div class="mkt-top-search-strip">
           <div class="mkt-search-input-wrap">
             <span class="mkt-input-search-ico">${UI.icon('search', 18)}</span>
-            <input type="search" id="mkt-page-search" class="mkt-code-search-input"
+            <input type="text" id="mkt-page-search" class="mkt-code-search-input"
                    placeholder="گەڕان بەپێی کۆدی ماڕکێت یان ناوی ماڕکێت..."
                    value="${UI.esc(state.search)}" autocomplete="off" autofocus>
-            <button type="button" class="mkt-clear-search-btn" id="mkt-page-search-clear" style="display: ${state.search ? 'flex' : 'none'};">✕</button>
+            <button type="button" class="mkt-clear-search-btn" id="mkt-page-search-clear" style="display: ${state.search ? 'flex' : 'none'};" title="پاککردنەوە">✕</button>
           </div>
-
         </div>
 
         <!-- لیستی ماڕکێتەکان لەسەر پەڕەکە -->
         <div class="mkt-list-container" id="mkt-page-list-container">
           ${renderPageListHtml(state.searchResults)}
         </div>
+
+        <!-- دوگمەی سەربەخۆی کامێرا بۆ سکان و دروستکردنی فایلی ماپ (KMZ) بەبێ هیچ ویندۆیەکی دەوروبەر -->
+        <button type="button" class="mkt-bbar-camera-btn" id="mkt-open-camera-btn" title="کامێرا و دروستکردنی فایلی ماپ">
+          <span class="mkt-bbar-cam-ico">${UI.icon('camera', 26)}</span>
+          <span class="mkt-bbar-cam-badge" id="mkt-bbar-badge" style="display: ${state.activeGroup && state.activeGroup.length ? 'inline-flex' : 'none'};">
+            ${(state.activeGroup || []).length}
+          </span>
+        </button>
 
       </div>
     `;
@@ -872,30 +857,34 @@ const MarketsView = (() => {
 
               <!-- ویندۆی پێشەوەی ماڕکێت — ڕاکێشان بۆ چەپ و ڕاست -->
               <div class="mkt-card-front" data-code="${UI.esc(code)}" title="ڕاکێشان بۆ دەستکاری یان سڕینەوە">
-                
-                <!-- دێڕی یەکەم: #کۆدی ماڕکێت تەنیشتی ناوی ماڕکێت -->
-                <div class="mkt-card-row-top">
-                  <span class="mkt-card-code">#${UI.esc(code)}</span>
-                  <span class="mkt-card-name">${UI.esc(name)}</span>
-                  ${hasLoc ? `
-                    <button type="button" class="mkt-card-loc-btn" data-action="open-map" title="کردنەوەی شوێن لەسەر نەخشە">
-                      📍 نەخشە
-                    </button>
-                  ` : `
-                    <button type="button" class="mkt-card-no-gps" data-action="open-map" title="دیاریکردنی شوێن لەسەر نەخشە">
-                      بێ GPS
-                    </button>
-                  `}
+
+                <!-- ناوەرۆکی سەرەکی ماڕکێت -->
+                <div class="mkt-card-body">
+
+                  <!-- دێڕی یەکەم: #کۆدی ماڕکێت تەنیشتی ناوی ماڕکێت -->
+                  <div class="mkt-card-row-top">
+                    <span class="mkt-card-code">#${UI.esc(code)}</span>
+                    <span class="mkt-card-name">${UI.esc(name)}</span>
+                  </div>
+
+                  <!-- دێڕی دووەم: زۆن پاشان ژمارە تەلەفۆن -->
+                  <div class="mkt-card-row-sub">
+                    <span class="mkt-card-zone">📍 ${UI.esc(nh || 'زۆن دیاری نەکراوە')}</span>
+                    ${phone ? `
+                      <span class="mkt-card-dot">•</span>
+                      <a href="tel:${UI.esc(phone)}" class="mkt-card-phone" title="پەیوەندیکردن">📞 ${UI.esc(phone)}</a>
+                    ` : ''}
+                  </div>
+
                 </div>
 
-                <!-- دێڕی دووەم: لەژێر ناوی ماڕکێت زۆن پاشان ژمارە تەلەفۆن -->
-                <div class="mkt-card-row-sub">
-                  <span class="mkt-card-zone">📍 ${UI.esc(nh || 'زۆن دیاری نەکراوە')}</span>
-                  ${phone ? `
-                    <span class="mkt-card-dot">•</span>
-                    <a href="tel:${UI.esc(phone)}" class="mkt-card-phone" title="پەیوەندیکردن">📞 ${UI.esc(phone)}</a>
-                  ` : ''}
-                </div>
+                <!-- ستریپی نەخشە — لای ڕاستی کارتەکە، پڕ بە بەرزی -->
+                <button type="button"
+                  class="mkt-card-map-strip ${hasLoc ? 'has-loc' : 'no-loc'}"
+                  data-action="open-map"
+                  title="${hasLoc ? 'کردنەوەی شوێن لەسەر نەخشە' : 'دیاریکردنی شوێن لەسەر نەخشە'}">
+                  <span class="mkt-map-strip-icon">${hasLoc ? '📍' : '🚫'}</span>
+                </button>
 
               </div>
 
@@ -950,6 +939,7 @@ const MarketsView = (() => {
     if (clearPageSearch) {
       clearPageSearch.addEventListener('click', () => {
         if (pageSearch) pageSearch.value = '';
+        clearPageSearch.style.display = 'none';
         state.search = '';
         state.hasSearched = false;
         state.searching = false;
@@ -959,19 +949,26 @@ const MarketsView = (() => {
       });
     }
 
-    // دوگمەکانی سەرووی پەڕە
-    const newBtn = $('#mkt-page-new-btn', container);
-    if (newBtn) newBtn.addEventListener('click', () => openAddEditModal());
 
-    const refreshBtn = $('#mkt-page-refresh-btn', container);
-    if (refreshBtn) {
-      refreshBtn.addEventListener('click', () => {
-        if (state.search.trim()) {
-          performSearch(state.search);
-        } else if (pageSearch) {
-          pageSearch.focus();
-        }
-      });
+
+    // جێگیرکردنی خانەی گەڕان لەژێر باڕی سەرەوە بۆ ئەوەی لە کاتی سکڕۆڵ نەچێتە سەرەوە یان خوارەوە
+    const topbar = (typeof document !== 'undefined' && typeof document.querySelector === 'function') ? document.querySelector('.topbar') : null;
+    const searchStrip = container && typeof container.querySelector === 'function' ? container.querySelector('.mkt-top-search-strip') : null;
+    const syncSearchTop = () => {
+      if (searchStrip) {
+        const h = (topbar && topbar.offsetHeight) ? topbar.offsetHeight : 52;
+        searchStrip.style.top = `${h}px`;
+      }
+    };
+    syncSearchTop();
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('resize', syncSearchTop, { passive: true });
+    }
+
+    // دوگمەی کامێرا لەسەر باڕی خوارەوە
+    const camBtn = $('#mkt-open-camera-btn', container);
+    if (camBtn) {
+      camBtn.addEventListener('click', () => openCameraModal());
     }
 
     const listEl = $('#mkt-page-list-container', container);
@@ -1213,6 +1210,550 @@ const MarketsView = (() => {
         closeActiveCard();
       }
     }, { passive: true });
+  }
+
+  /* ---------------- نوێکردنەوەی باجی دوگمەی کامێرا ---------------- */
+
+  function updateBottomBarBadge() {
+    const badge = $('#mkt-bbar-badge', container);
+    if (badge) {
+      const len = (state.activeGroup || []).length;
+      badge.textContent = String(len);
+      badge.style.display = len > 0 ? 'inline-flex' : 'none';
+    }
+  }
+
+  /* ---------------- فۆرماتی KML و دروستکردنی فایلی KMZ (هاوشێوەی allmarket.kmz) ---------------- */
+
+  function crc32Table() {
+    let c;
+    const table = [];
+    for (let n = 0; n < 256; n++) {
+      c = n;
+      for (let k = 0; k < 8; k++) {
+        c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+      }
+      table[n] = c;
+    }
+    return table;
+  }
+  const CRC_TABLE = crc32Table();
+
+  function computeCrc32(bytes) {
+    let crc = 0 ^ (-1);
+    for (let i = 0; i < bytes.length; i++) {
+      crc = (crc >>> 8) ^ CRC_TABLE[(crc ^ bytes[i]) & 0xFF];
+    }
+    return (crc ^ (-1)) >>> 0;
+  }
+
+  function createKmzBlob(kmlString) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(kmlString);
+    const fn = encoder.encode('mapsme.kml');
+    const crc = computeCrc32(data);
+    const now = new Date();
+    const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+    const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+
+    // Local file header (30 bytes + filename)
+    const loc = new Uint8Array(30 + fn.length);
+    const locView = new DataView(loc.buffer);
+    locView.setUint32(0, 0x04034b50, true);
+    locView.setUint16(4, 20, true);
+    locView.setUint16(6, 0, true);
+    locView.setUint16(8, 0, true); // store
+    locView.setUint16(10, dosTime, true);
+    locView.setUint16(12, dosDate, true);
+    locView.setUint32(14, crc, true);
+    locView.setUint32(18, data.length, true);
+    locView.setUint32(22, data.length, true);
+    locView.setUint16(26, fn.length, true);
+    locView.setUint16(28, 0, true);
+    loc.set(fn, 30);
+
+    // Central directory header (46 bytes + filename)
+    const cen = new Uint8Array(46 + fn.length);
+    const cenView = new DataView(cen.buffer);
+    cenView.setUint32(0, 0x02014b50, true);
+    cenView.setUint16(4, 20, true);
+    cenView.setUint16(6, 20, true);
+    cenView.setUint16(8, 0, true);
+    cenView.setUint16(10, 0, true);
+    cenView.setUint16(12, dosTime, true);
+    cenView.setUint16(14, dosDate, true);
+    cenView.setUint32(16, crc, true);
+    cenView.setUint32(20, data.length, true);
+    cenView.setUint32(24, data.length, true);
+    cenView.setUint16(28, fn.length, true);
+    cenView.setUint16(30, 0, true);
+    cenView.setUint16(32, 0, true);
+    cenView.setUint16(34, 0, true);
+    cenView.setUint16(36, 0, true);
+    cenView.setUint32(38, 0, true);
+    cenView.setUint32(42, 0, true);
+    cen.set(fn, 46);
+
+    // End of central directory record (22 bytes)
+    const end = new Uint8Array(22);
+    const endView = new DataView(end.buffer);
+    endView.setUint32(0, 0x06054b50, true);
+    endView.setUint16(4, 0, true);
+    endView.setUint16(6, 0, true);
+    endView.setUint16(8, 1, true);
+    endView.setUint16(10, 1, true);
+    endView.setUint32(12, cen.length, true);
+    endView.setUint32(16, loc.length + data.length, true);
+    endView.setUint16(20, 0, true);
+
+    return new Blob([loc, data, cen, end], { type: 'application/vnd.google-earth.kmz' });
+  }
+
+  function generateMapsMeKml(markets, title = 'ماڕکێتەکان') {
+    const isoDate = new Date().toISOString();
+    const docUuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : '5490db64-6610-43a3-811c-00adff6951a6';
+
+    const placemarks = (markets || []).map((m, idx) => {
+      const code = UI.esc(m.account_code || '');
+      const name = UI.esc(m.account_name || 'ماڕکێت');
+      const zone = UI.esc(m.neighborhood || m.zone || '—');
+      const phone = UI.esc(m.phone || '—');
+      const lat = Number(m.latitude);
+      const lng = Number(m.longitude);
+      const pmUuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `mkt-${idx}-${code}`;
+
+      return `
+  <Placemark>
+    <name>[${code}] ${name}</name>
+    <TimeStamp><when>${isoDate}</when></TimeStamp>
+    <styleUrl>#placemark-red</styleUrl>
+    <Point><coordinates>${lng},${lat}</coordinates></Point>
+    <description><![CDATA[کۆدی ئەکاونت: ${code}<br>ناوی ماڕکێت: ${name}<br>زۆن: ${zone}<br>تەلەفۆن: ${phone}]]></description>
+    <ExtendedData xmlns:mwm="https://maps.me">
+      <mwm:name>${name}</mwm:name>
+      <mwm:customName>[${code}] ${name}</mwm:customName>
+      <mwm:scale>18</mwm:scale>
+      <mwm:visibility>1</mwm:visibility>
+      <mwm:lastModified>${isoDate}</mwm:lastModified>
+      <mwm:isDeleted>0</mwm:isDeleted>
+      <mwm:uniqueId>${pmUuid}</mwm:uniqueId>
+    </ExtendedData>
+  </Placemark>`;
+    }).join('');
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://earth.google.com/kml/2.2">
+<Document>
+  <Style id="placemark-red">
+    <IconStyle>
+      <Icon>
+        <href>http://maps.me/placemarks/placemark-red.png</href>
+      </Icon>
+    </IconStyle>
+  </Style>
+  <Style id="placemark-blue">
+    <IconStyle>
+      <Icon>
+        <href>http://maps.me/placemarks/placemark-blue.png</href>
+      </Icon>
+    </IconStyle>
+  </Style>
+  <Style id="placemark-purple">
+    <IconStyle>
+      <Icon>
+        <href>http://maps.me/placemarks/placemark-purple.png</href>
+      </Icon>
+    </IconStyle>
+  </Style>
+  <Style id="placemark-yellow">
+    <IconStyle>
+      <Icon>
+        <href>http://maps.me/placemarks/placemark-yellow.png</href>
+      </Icon>
+    </IconStyle>
+  </Style>
+  <Style id="placemark-green">
+    <IconStyle>
+      <Icon>
+        <href>http://maps.me/placemarks/placemark-green.png</href>
+      </Icon>
+    </IconStyle>
+  </Style>
+  <name>${UI.esc(title)}</name>
+  <visibility>1</visibility>
+  <ExtendedData xmlns:mwm="https://maps.me">
+    <mwm:lastModified>${isoDate}</mwm:lastModified>
+    <mwm:isDeleted>0</mwm:isDeleted>
+    <mwm:uniqueId>${docUuid}</mwm:uniqueId>
+  </ExtendedData>
+  ${placemarks}
+</Document>
+</kml>`;
+  }
+
+  async function sendGroupToMapsMe(marketsGroup) {
+    const valid = (marketsGroup || []).filter(m => m.latitude !== null && m.latitude !== undefined &&
+                                                  m.longitude !== null && m.longitude !== undefined &&
+                                                  !isNaN(Number(m.latitude)) && !isNaN(Number(m.longitude)));
+
+    if (!valid.length) {
+      UI.toast('هیچ کام لە ماڕکێتە دیاریکراوەکان لۆکەیشنی GPS یان نییە بۆ ناردن بۆ ماپ', 'warning', 4000);
+      return;
+    }
+
+    const title = `ماڕکێتەکان_${UI.todayStr()}`;
+    const kmlText = generateMapsMeKml(valid, title);
+    const kmzBlob = createKmzBlob(kmlText);
+    const filename = `${title}.kmz`;
+    const file = new File([kmzBlob], filename, { type: 'application/vnd.google-earth.kmz' });
+
+    let shared = false;
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: title,
+          text: 'فایلی ماڕکێتەکان بۆ بەرنامەی ماپ'
+        });
+        shared = true;
+        UI.toast('فایلی ماڕکێتەکان (KMZ) بە سەرکەوتوویی بۆ بەرنامەی ماپ نێردرا ✓', 'success', 3500);
+      } catch (err) {
+        if (err.name !== 'AbortError') console.warn('Share error:', err);
+      }
+    }
+
+    if (!shared) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(kmzBlob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(a.href); }, 1500);
+      UI.toast('فایلی KMZ دابەزێنرا — لە مۆبایل یان کۆمپیوتەر کلیکی لێبکە تا لە ماپسمی بکرێتەوە ✓', 'success', 4500);
+    }
+  }
+
+  /* ---------------- خوێندنەوەی دەقی وێنەی کاعەز و دەرهێنانی کۆدەکان ---------------- */
+
+  let tesseractLoadingPromise = null;
+  function ensureTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (tesseractLoadingPromise) return tesseractLoadingPromise;
+    tesseractLoadingPromise = new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      script.onload = () => resolve(window.Tesseract);
+      script.onerror = () => {
+        console.warn('Tesseract load failed (offline or CDN blocked)');
+        resolve(null);
+      };
+      document.head.appendChild(script);
+    });
+    return tesseractLoadingPromise;
+  }
+
+  function parseCodesFromPaperText(text) {
+    if (!text) return [];
+    const latin = UI.toLatinDigits(text);
+    const lines = latin.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const result = new Set();
+
+    let foundCodeCol = false;
+    for (const line of lines) {
+      if (/code|cod|کۆد|كود/i.test(line)) {
+        foundCodeCol = true;
+      }
+      const matches = line.match(/\b\d{1,6}\b/g) || [];
+      matches.forEach(num => {
+        if (!/^202[0-9]$/.test(num)) {
+          result.add(num);
+        }
+      });
+    }
+
+    return Array.from(result);
+  }
+
+  async function addMarketsByCodes(codes) {
+    if (!Array.isArray(codes) || !codes.length) return 0;
+    const cleanCodes = codes.map(c => UI.toLatinDigits(c).replace(/\D/g, '').trim()).filter(Boolean);
+    if (!cleanCodes.length) return 0;
+
+    let addedCount = 0;
+    for (const code of cleanCodes) {
+      if (state.activeGroup.some(m => String(m.account_code).trim() === code)) continue;
+
+      let target = state.localMarkets.get(code) ||
+                   state.searchResults.find(m => String(m.account_code).trim() === code);
+
+      if (!target && typeof API !== 'undefined' && API.Markets && API.Markets.search) {
+        try {
+          const res = await API.Markets.search(code);
+          target = (res || []).find(m => String(m.account_code).trim() === code);
+          if (target) state.localMarkets.set(code, target);
+        } catch (_) {}
+      }
+
+      if (target) {
+        state.activeGroup.push(target);
+        addedCount++;
+      }
+    }
+
+    updateBottomBarBadge();
+    return addedCount;
+  }
+
+  /* =========================================================
+   *  مۆدالی کامێرا و دروستکردنی فایلی ماپ (KMZ)
+   * ========================================================= */
+
+  function openCameraModal() {
+    const modalBody = document.createElement('div');
+    modalBody.className = 'mkt-cam-modal-body';
+
+    modalBody.innerHTML = `
+      <div class="mkt-cam-intro">
+        <p class="muted" style="margin-top:0">
+          وێنەی کاعەز و پسوولەکان بگرە یان هەڵبژێرە، کۆدەکان وەردەگیرێن و دەتوانیت ماڕکێتی تر بە کۆد زیاد بکەیت، پاشان وەک فایلی <b>KMZ</b> ڕاستەوخۆ دەینێرێت بۆ بەرنامەی ماپ تا هەموو شوێنەکان بەدیار بکەون.
+        </p>
+      </div>
+
+      <!-- دووگمەکانی وێنەگرتن و سکان -->
+      <div class="mkt-cam-actions-box">
+        <input type="file" id="mkt-cam-file-input" accept="image/*" capture="environment" style="display:none">
+        <input type="file" id="mkt-gallery-file-input" accept="image/*" multiple style="display:none">
+
+        <div class="mkt-cam-btns-row">
+          <button type="button" class="btn btn-primary" id="mkt-cam-take-photo-btn">
+            <span>${UI.icon('camera', 20)}</span>
+            <span>گرتنی وێنە (کامێرا)</span>
+          </button>
+          <button type="button" class="btn btn-ghost" id="mkt-cam-pick-gallery-btn">
+            <span>🖼️ هەڵبژاردن لە مۆبایل</span>
+          </button>
+        </div>
+
+        <div class="mkt-cam-input-manual-row">
+          <input type="text" id="mkt-manual-code-input" inputmode="numeric" placeholder="یان کۆدی ماڕکێت بنووسە بۆ زیادکردن: بۆ نموونە 101 102 105" autocomplete="off">
+          <button type="button" class="btn btn-primary" id="mkt-add-manual-code-btn">＋ زیادکردن</button>
+        </div>
+      </div>
+
+      <!-- شوێنی نیشاندانی وێنە گیراوەکان -->
+      <div class="mkt-thumbs-preview" id="mkt-thumbs-preview" style="display:none"></div>
+
+      <!-- گرووپی ماڕکێتە هەڵبژێردراوەکان -->
+      <div class="mkt-scanned-group-wrap">
+        <div class="mkt-group-head-row">
+          <h4>📍 ماڕکێتە هەڵبژێردراوەکان بۆ فایلی ماپ (<span id="mkt-group-count">${state.activeGroup.length}</span> ماڕکێت)</h4>
+          ${state.activeGroup.length ? `<button type="button" class="btn btn-xs btn-ghost text-danger" id="mkt-clear-group-inner">خاوێنکردنەوە</button>` : ''}
+        </div>
+
+        <div class="mkt-group-items-list" id="mkt-group-items-list">
+          ${renderGroupItemsHtml()}
+        </div>
+      </div>
+    `;
+
+    const { close } = UI.openModal({
+      title: '📸 کامێرا و دروستکردنی فایلی ماپ (KMZ)',
+      body: modalBody,
+      wide: true,
+      actions: [
+        { label: 'داخستن', className: 'btn-ghost', onClick: () => close() },
+        {
+          label: '🗺️ ناردن بۆ بەرنامەی ماپ (KMZ)',
+          className: 'btn-success',
+          onClick: async () => {
+            if (!state.activeGroup.length) {
+              UI.toast('تکایە سەرەتا چەند ماڕکێتێک بە کامێرا یان بە کۆد زیاد بکە', 'warning');
+              return;
+            }
+            await sendGroupToMapsMe(state.activeGroup);
+            close();
+            updateBottomBarBadge();
+          }
+        }
+      ]
+    });
+
+    const camInput = modalBody.querySelector('#mkt-cam-file-input');
+    const galInput = modalBody.querySelector('#mkt-gallery-file-input');
+    const photoBtn = modalBody.querySelector('#mkt-cam-take-photo-btn');
+    const galBtn = modalBody.querySelector('#mkt-cam-pick-gallery-btn');
+    const thumbsWrap = modalBody.querySelector('#mkt-thumbs-preview');
+    const manualInput = modalBody.querySelector('#mkt-manual-code-input');
+    const manualBtn = modalBody.querySelector('#mkt-add-manual-code-btn');
+
+    photoBtn?.addEventListener('click', () => camInput?.click());
+    galBtn?.addEventListener('click', () => galInput?.click());
+
+    const handleFiles = async (files) => {
+      if (!files || !files.length) return;
+      thumbsWrap.style.display = 'flex';
+
+      for (const file of files) {
+        const imgBox = document.createElement('div');
+        imgBox.className = 'mkt-thumb-box';
+        const url = URL.createObjectURL(file);
+        imgBox.innerHTML = `
+          <img src="${url}" alt="کاعەز">
+          <span class="mkt-thumb-status">خوێندنەوە...</span>
+          <button type="button" class="mkt-thumb-del" title="سڕینەوە">✕</button>
+        `;
+        thumbsWrap.appendChild(imgBox);
+
+        imgBox.querySelector('.mkt-thumb-del')?.addEventListener('click', () => {
+          imgBox.remove();
+          URL.revokeObjectURL(url);
+          if (!thumbsWrap.children.length) thumbsWrap.style.display = 'none';
+        });
+
+        const statusEl = imgBox.querySelector('.mkt-thumb-status');
+        await processCapturedImage(file, imgBox, statusEl);
+        refreshGroupList();
+      }
+    };
+
+    camInput?.addEventListener('change', e => {
+      handleFiles([...(e.target.files || [])]);
+      camInput.value = '';
+    });
+    galInput?.addEventListener('change', e => {
+      handleFiles([...(e.target.files || [])]);
+      galInput.value = '';
+    });
+
+    async function processCapturedImage(file, imgBox, statusEl) {
+      statusEl.textContent = 'خوێندنەوە...';
+      let codes = [];
+
+      if ('BarcodeDetector' in window) {
+        try {
+          const detector = new window.BarcodeDetector({ formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8'] });
+          const bmp = await createImageBitmap(file);
+          const barcodes = await detector.detect(bmp);
+          barcodes.forEach(b => {
+            if (b.rawValue) codes.push(b.rawValue.trim());
+          });
+        } catch (_) {}
+      }
+
+      try {
+        const Tesseract = await ensureTesseract();
+        if (Tesseract) {
+          statusEl.textContent = 'دەرهێنانی کۆد...';
+          const res = await Tesseract.recognize(file, 'eng');
+          const text = res?.data?.text || '';
+          const found = parseCodesFromPaperText(text);
+          found.forEach(c => codes.push(c));
+        }
+      } catch (e) {
+        console.warn('OCR error:', e);
+      }
+
+      const uniqueCodes = [...new Set(codes.map(c => UI.toLatinDigits(c).replace(/\D/g, '').trim()).filter(Boolean))];
+
+      if (!uniqueCodes.length) {
+        statusEl.textContent = 'کۆد نەدۆزرایەوە';
+        statusEl.style.color = '#fbbf24';
+        return 0;
+      }
+
+      statusEl.textContent = 'پشکنین لە سەب بەیس...';
+      const added = await addMarketsByCodes(uniqueCodes);
+      statusEl.textContent = `${added} ماڕکێت زیادکرا ✓`;
+      statusEl.style.color = '#10b981';
+      return added;
+    }
+
+    const addManual = async () => {
+      const val = manualInput.value.trim();
+      if (!val) return;
+      const latin = UI.toLatinDigits(val);
+      const codes = latin.split(/[,،\s]+/).map(c => c.replace(/\D/g, '').trim()).filter(Boolean);
+      if (!codes.length) return;
+
+      manualBtn.disabled = true;
+      try {
+        const added = await addMarketsByCodes(codes);
+        if (added > 0) {
+          UI.toast(`${added} ماڕکێت زیادکرا بۆ گرووپەکە ✓`, 'success');
+        } else {
+          UI.toast(`هیچ ماڕکێتێکی نوێ نەدۆزرایەوە بۆ کۆدەکان: ${codes.join(', ')}`, 'warning');
+        }
+        manualInput.value = '';
+        refreshGroupList();
+      } finally {
+        manualBtn.disabled = false;
+      }
+    };
+
+    manualBtn?.addEventListener('click', addManual);
+    manualInput?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addManual();
+      }
+    });
+
+    modalBody.querySelector('#mkt-clear-group-inner')?.addEventListener('click', () => {
+      state.activeGroup = [];
+      updateBottomBarBadge();
+      refreshGroupList();
+    });
+
+    function refreshGroupList() {
+      const countEl = modalBody.querySelector('#mkt-group-count');
+      const listEl = modalBody.querySelector('#mkt-group-items-list');
+      if (countEl) countEl.textContent = state.activeGroup.length;
+      if (listEl) listEl.innerHTML = renderGroupItemsHtml();
+      bindGroupItemDeletes();
+      updateBottomBarBadge();
+    }
+
+    function bindGroupItemDeletes() {
+      modalBody.querySelectorAll('[data-drop-code]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const code = btn.dataset.dropCode;
+          state.activeGroup = state.activeGroup.filter(x => String(x.account_code) !== String(code));
+          refreshGroupList();
+        });
+      });
+    }
+
+    bindGroupItemDeletes();
+  }
+
+  function renderGroupItemsHtml() {
+    if (!state.activeGroup.length) {
+      return `<div class="mkt-group-empty muted" style="padding:14px; text-align:center;">هێشتا هیچ ماڕکێتێک هەڵنەبژێردراوە. بە کامێرا وێنە بگرە یان کۆد بنووسە.</div>`;
+    }
+
+    return state.activeGroup.map((m, idx) => {
+      const hasCoords = m.latitude !== null && m.latitude !== undefined &&
+                        m.longitude !== null && m.longitude !== undefined &&
+                        !isNaN(Number(m.latitude)) && !isNaN(Number(m.longitude));
+
+      return `
+        <div class="mkt-group-card-item">
+          <span class="mkt-g-index">#${idx + 1}</span>
+          <div class="mkt-g-info">
+            <div class="mkt-g-code-row">
+              <span class="mkt-g-code-chip">${UI.esc(m.account_code)}</span>
+              <strong>${UI.esc(m.account_name || 'ماڕکێت')}</strong>
+            </div>
+            <div class="mkt-g-sub">
+              <span>${m.neighborhood || m.zone ? '📍 ' + UI.esc(m.neighborhood || m.zone) : ''}</span>
+              ${hasCoords
+                ? `<span class="text-success" style="font-size:0.78rem">✓ لۆکەیشن هەیە</span>`
+                : `<span class="text-danger" style="font-size:0.78rem">⚠️ بێ لۆکەیشن</span>`}
+            </div>
+          </div>
+          <button type="button" class="btn btn-ghost btn-xs text-danger" data-drop-code="${UI.esc(m.account_code)}" title="سڕینەوە لە گرووپ">✕</button>
+        </div>`;
+    }).join('');
   }
 
   function stop() {

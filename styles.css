@@ -3249,6 +3249,257 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
   color: #10b981;
 }
 
+/* باڕی لکێندراوی سەرەوە بۆ گەڕانی ماڕکێتەکان — هەمیشە لە شوێنی خۆی دەمێنێتەوە لە کاتی سکڕۆڵ */
+.mkt-top-search-strip {
+  position: sticky;
+  top: 50px;
+  z-index: 38;
+  margin-top: -14px;
+  padding: 10px 0 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.mkt-top-search-strip .mkt-search-input-wrap {
+  margin-bottom: 0;
+}
+
+/* دوگمەی سەرپێچ و سەربەخۆی کامێرا (Floating Action Button) بەبێ ویندۆ */
+.mkt-bbar-camera-btn {
+  position: fixed;
+  bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #0b1220));
+  color: #fff;
+  border: 2px solid color-mix(in srgb, var(--accent) 45%, #fff);
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--accent) 55%, transparent);
+  cursor: pointer;
+  transition: transform 0.18s ease, filter 0.15s ease, box-shadow 0.18s ease;
+}
+
+.mkt-bbar-camera-btn:hover {
+  filter: brightness(1.12);
+  transform: translateX(-50%) translateY(-3px) scale(1.06);
+  box-shadow: 0 14px 32px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.mkt-bbar-camera-btn:active {
+  transform: translateX(-50%) scale(0.93);
+}
+
+.mkt-bbar-cam-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mkt-bbar-cam-ico svg {
+  width: 26px;
+  height: 26px;
+}
+
+.mkt-bbar-cam-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  background: #dc2626;
+  color: #fff;
+  border-radius: 999px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--surface, #121a2b);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* مۆدالی کامێرا و سکانکردن بۆ فایلی ماپ (KMZ) */
+.mkt-cam-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mkt-cam-actions-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mkt-cam-btns-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 520px) {
+  .mkt-cam-btns-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mkt-cam-input-manual-row {
+  display: flex;
+  gap: 8px;
+}
+
+.mkt-cam-input-manual-row input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--input-bg, var(--surface-2));
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.mkt-thumbs-preview {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 8px 4px;
+}
+
+.mkt-thumb-box {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid var(--border);
+  background: #000;
+}
+
+.mkt-thumb-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mkt-thumb-box .mkt-thumb-status {
+  position: absolute;
+  bottom: 0;
+  inset-inline: 0;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 0.65rem;
+  text-align: center;
+  padding: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mkt-thumb-box .mkt-thumb-del {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(220, 38, 38, 0.85);
+  color: #fff;
+  border: none;
+  font-size: 0.7rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mkt-scanned-group-wrap {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mkt-group-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mkt-group-head-row h4 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.mkt-group-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.mkt-group-card-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.mkt-g-index {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.mkt-g-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mkt-g-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mkt-g-code-chip {
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  direction: ltr;
+}
+
+.mkt-g-sub {
+  font-size: 0.76rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .mkt-search-input-wrap {
   position: relative;
   display: flex;
@@ -3283,26 +3534,45 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
   outline: none;
 }
 
+/* سڕینەوەی ئایکۆنی بچووکی ناوەکی وێبگەڕ لە خانەی گەڕان بۆ ئەوەی دوو ئێکس دروست نەبێت */
+.mkt-code-search-input::-webkit-search-cancel-button,
+.mkt-code-search-input::-webkit-search-decoration,
+.mkt-code-search-input::-webkit-search-results-button,
+.mkt-code-search-input::-webkit-search-results-decoration,
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 .mkt-clear-search-btn {
   position: absolute;
   left: 12px;
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  border: none;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   background: var(--surface-2);
   color: var(--muted);
   font-size: 0.85rem;
+  font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
+  z-index: 2;
 }
 
 .mkt-clear-search-btn:hover {
   background: var(--border);
   color: var(--text);
+  transform: scale(1.08);
 }
 
 .mkt-quick-filters {
@@ -3469,85 +3739,7 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
   padding: 6px 12px;
 }
 
-/* باڕی خوارەوە بۆ دوو دوگمەکە (کامێرا و ماڕکێتی نوێ) */
-.mkt-bottom-bar {
-  position: fixed;
-  bottom: calc(68px + env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 45;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 18px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1.5px solid color-mix(in srgb, var(--border) 80%, var(--accent));
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
-  max-width: 92vw;
-}
 
-.mkt-bbar-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 11px 22px;
-  border-radius: 999px;
-  border: none;
-  font-size: 0.95rem;
-  font-weight: 800;
-  cursor: pointer;
-  transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
-  user-select: none;
-  position: relative;
-  font-family: inherit;
-}
-
-.mkt-bbar-btn:hover {
-  transform: translateY(-2px);
-}
-
-.mkt-bbar-btn:active {
-  transform: scale(0.96);
-}
-
-.mkt-cam-btn {
-  background: linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%);
-  color: #ffffff;
-  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.4);
-}
-
-.mkt-new-btn {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: #ffffff;
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
-}
-
-.mkt-bbar-ico {
-  display: flex;
-  align-items: center;
-}
-
-.mkt-bbar-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #ef4444;
-  color: #fff;
-  font-size: 0.74rem;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid var(--surface);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-}
 
 /* مۆدالی کامێرا و ماپسمی */
 .mkt-cam-modal-body {
@@ -3820,18 +4012,7 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
     border-top: 1px dashed color-mix(in srgb, var(--border) 60%, transparent);
     padding-top: 8px;
   }
-  .mkt-bottom-bar {
-    bottom: calc(58px + env(safe-area-inset-bottom));
-    width: 94vw;
-    padding: 6px 10px;
-    gap: 8px;
-    justify-content: stretch;
-  }
-  .mkt-bbar-btn {
-    flex: 1;
-    padding: 10px 14px;
-    font-size: 0.88rem;
-  }
+
   .mkt-form-row {
     flex-direction: column;
     gap: 12px;
@@ -3909,20 +4090,20 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
   background: #dc2626; /* سوور بۆ سڕینەوە */
 }
 
-/* کارتی پێشەوە — ڕاکێشان بۆ چەپ و ڕاست */
+/* کارتی پێشەوە — ڕاکێشان بۆ چەپ و ڕاست — فلەکس ڕێکی بۆ ستریپی نەخشە دەکەویتەوە */
 .mkt-card-front {
   position: relative;
   z-index: 2;
   background: var(--surface);
-  padding: 14px 18px;
   display: flex;
-  flex-direction: column;
-  gap: 7px;
+  flex-direction: row;
+  align-items: stretch;
   cursor: grab;
   touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
   transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), background 0.15s ease;
+  overflow: hidden;
 }
 
 .mkt-swipe-item.is-dragging .mkt-card-front {
@@ -3932,6 +4113,68 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
 
 .mkt-card-front:hover {
   background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+}
+
+/* ناوەرۆکی سەرەکی — ٢فلەکس، ناوەرۆکی پڕ بە چەپ */
+.mkt-card-body {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* ستریپی تولی لای ڕاست — دوگمەی نەخشە، پڕ بە بەرزی کارتەکە */
+.mkt-card-map-strip {
+  flex-shrink: 0;
+  width: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, transform 0.12s ease;
+  position: relative;
+  touch-action: manipulation;
+}
+
+/* ستریپی شین (GPS هەیە) */
+.mkt-card-map-strip.has-loc {
+  background: rgba(37, 99, 235, 0.08);
+  border-right: 3px solid rgba(37, 99, 235, 0.35);
+  color: #2563eb;
+}
+
+.mkt-card-map-strip.has-loc:hover {
+  background: #2563eb;
+  border-right-color: #2563eb;
+  color: #fff;
+}
+
+/* ستریپی زەرد (GPS نییە) */
+.mkt-card-map-strip.no-loc {
+  background: rgba(217, 119, 6, 0.07);
+  border-right: 3px solid rgba(217, 119, 6, 0.32);
+  color: #d97706;
+}
+
+.mkt-card-map-strip.no-loc:hover {
+  background: #d97706;
+  border-right-color: #d97706;
+  color: #fff;
+}
+
+.mkt-card-map-strip:active {
+  transform: scale(0.94);
+}
+
+.mkt-map-strip-icon {
+  font-size: 1.55rem;
+  line-height: 1;
+  display: block;
+  pointer-events: none;
 }
 
 /* دێڕی یەکەم: #کۆدی ماڕکێت تەنیشتی ناوی ماڕکێت */
@@ -3967,56 +4210,7 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
   word-break: break-word;
 }
 
-.mkt-card-loc-btn {
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: #2563eb;
-  background: rgba(37, 99, 235, 0.1);
-  border: 1px solid rgba(37, 99, 235, 0.3);
-  padding: 4px 10px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-family: inherit;
-  line-height: 1.2;
-}
-
-.mkt-card-loc-btn:hover {
-  background: #2563eb;
-  color: #fff;
-  border-color: #2563eb;
-  transform: scale(1.05);
-}
-
-.mkt-card-loc-btn:active {
-  transform: scale(0.96);
-}
-
-.mkt-card-no-gps {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #d97706;
-  background: rgba(217, 119, 6, 0.1);
-  border: 1px solid rgba(217, 119, 6, 0.28);
-  padding: 4px 9px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-family: inherit;
-  line-height: 1.2;
-}
-
-.mkt-card-no-gps:hover {
-  background: #d97706;
-  color: #fff;
-  border-color: #d97706;
-}
+/* ژمارە تەلەفۆنی لە ناوەرۆکی ماڕکێتەکەدا — نە بەشێوەی دوگمە */
 
 /* دێڕی دووەم: لەژێر ناوی ماڕکێت زۆن پاشان ژمارە تەلەفۆن */
 .mkt-card-row-sub {
