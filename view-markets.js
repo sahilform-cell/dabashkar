@@ -1171,22 +1171,35 @@ const MarketsView = (() => {
             if (activeOpenCard === front) activeOpenCard = null;
           }
         } else if (!isVertical && movedDistance < 14 && elapsed < 650) {
-          // داگرتنی ئاسایی (Tap) — ئەگەر کارت کراوە بووبێت دایخە، وەگەر نا بچوو بۆ نەخشە
+          // داگرتنی ئاسایی (Tap) — تەنها کارتی کراوە دادەخات
           if (front.classList.contains('is-open')) {
             front.style.transform = '';
             delete front.dataset.offset;
             front.classList.remove('is-open');
             activeOpenCard = null;
-          } else {
-            // پشکنینی ئەوەی کلیک لەسەر ژمارە تەلەفۆن نەبووبێت
-            if (!e.target.closest('.mkt-card-phone, a[href^="tel:"]')) {
-              openLocationApp(market);
-            }
           }
         }
       };
 
       front.addEventListener('pointerdown', onPointerDown);
+    });
+
+    // دوگمەی 📍 نەخشە / بێ GPS — تەنها ئەمانە دەچنەوە ناو نەخشە
+    root.querySelectorAll('[data-action="open-map"]').forEach(btn => {
+      // ڕێگری لە دەستپێکردنی swipe لەلایەن دوگمەی نەخشە
+      btn.addEventListener('pointerdown', e => {
+        e.stopPropagation();
+      });
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        e.preventDefault();
+        closeActiveCard();
+        const swipeItem = btn.closest('.mkt-swipe-item');
+        const mCode = swipeItem ? swipeItem.getAttribute('data-code') : null;
+        const mkt = (state.searchResults || []).find(m => String(m.account_code) === String(mCode)) ||
+                    (state.localMarkets ? state.localMarkets.get(mCode) : null);
+        if (mkt) openLocationApp(mkt);
+      });
     });
 
     // ڕێگری لە swipe کاتێک پەیوەندی بە ژمارە تەلەفۆن دەکرێت
