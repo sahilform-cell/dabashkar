@@ -4120,3 +4120,159 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
   z-index: 20 !important;
 }
 
+/* کارت و نیشاندەری سەرەتایی گەڕان بۆ خێرایی بەرز */
+.mkt-search-prompt-card {
+  padding: 44px 20px;
+  text-align: center;
+  border: 1.5px dashed var(--border);
+  background: var(--surface);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.mkt-search-prompt-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  margin-bottom: 12px;
+}
+
+.mkt-search-prompt-title {
+  margin: 0 0 6px;
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: var(--text);
+}
+
+.mkt-search-prompt-desc {
+  color: var(--muted);
+  font-size: 0.92rem;
+  max-width: 440px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.mkt-search-loading-card {
+  padding: 36px 20px;
+  text-align: center;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.mkt-search-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: mktSpin 0.7s linear infinite;
+}
+
+@keyframes mktSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* مۆداڵی هەڵبژاردنی ئەپەکانی نەخشە */
+.mkt-map-chooser-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.mkt-map-app-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.98rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.18s ease;
+  font-family: inherit;
+  text-align: right;
+  width: 100%;
+}
+
+.mkt-map-app-btn:hover {
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface-2));
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.mkt-map-app-btn:active {
+  transform: translateY(0);
+}
+
+.mkt-map-app-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.mkt-map-app-btn.mapsme .mkt-map-app-icon {
+  background: #10b981;
+  color: #fff;
+}
+
+.mkt-map-app-btn.google .mkt-map-app-icon {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.mkt-map-app-btn.geo .mkt-map-app-icon {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.mkt-map-app-btn.apple .mkt-map-app-icon {
+  background: #6b7280;
+  color: #fff;
+}
+
+.mkt-map-app-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex: 1;
+}
+
+.mkt-map-app-title {
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.mkt-map-app-sub {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: normal;
+  margin-top: 2px;
+}
+
+
+

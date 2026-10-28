@@ -754,6 +754,41 @@ const API = (() => {
         `/${CONFIG.MARKETS_TABLE || 'market_locaetion'}?account_code=eq.${encodeURIComponent(accountCode)}`,
         { method: 'DELETE' });
     },
+
+    async search(rawQuery) {
+      const q = String(rawQuery || '').trim().replace(/^[#＃]/, '');
+      if (!q) return [];
+      const latin = (typeof UI !== 'undefined' ? UI.toLatinDigits(q) : q).trim();
+      const digitsOnly = latin.replace(/\D/g, '');
+      const isPureNumber = digitsOnly.length > 0 && digitsOnly === latin;
+
+      const table = CONFIG.MARKETS_TABLE || 'market_locaetion';
+
+      try {
+        if (isPureNumber) {
+          if (digitsOnly.length < 8) {
+            // بەراوردی تەواوی کۆدی ماڕکێت (ڕێک ئەو کۆدە دەهێنێت نەک 12 و 24)
+            const rows = await request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
+              `/${table}?select=*&account_code=eq.${encodeURIComponent(digitsOnly)}`);
+            return Array.isArray(rows) ? rows : [];
+          } else {
+            // بۆ ژمارەی تەلەفۆن یان زیاتر لە ٨ ژمارە
+            const rows = await request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
+              `/${table}?select=*&or=(account_code.eq.${encodeURIComponent(digitsOnly)},phone.like.*${encodeURIComponent(digitsOnly)}*)&limit=50`);
+            return Array.isArray(rows) ? rows : [];
+          }
+        }
+
+        // بۆ گەڕانی دەق (ناوی ماڕکێت یان ناوی گەڕەک/زۆن)
+        const enc = encodeURIComponent(q);
+        const rows = await request(CONFIG.RECORDS_URL, CONFIG.RECORDS_KEY,
+          `/${table}?select=*&or=(account_name.ilike.*${enc}*,neighborhood.ilike.*${enc}*)&order=account_code.asc&limit=50`);
+        return Array.isArray(rows) ? rows : [];
+      } catch (err) {
+        console.warn('هەڵە لە گەڕانی ماڕکێت لە سەب بەیس:', err);
+        return [];
+      }
+    },
   };
 
   return { Records, Lists, Notifications, Professions, Markets, login, loginOptions, changeOwnPin, uploadAvatar, migrateAvatars, gatewayActive: gwOn };

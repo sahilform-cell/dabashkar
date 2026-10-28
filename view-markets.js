@@ -10,31 +10,13 @@ const MarketsView = (() => {
   let container = null;
 
   const state = {
-    markets: [],
+    searchResults: [],
+    hasSearched: false,
     search: '',
-    neighborhoodFilter: '',
+    searching: false,
     sortMode: 'code-asc', // 'code-asc' | 'code-desc' | 'name-asc'
-    onlyWithLocation: false,
-    loading: false
+    localMarkets: new Map() // ماڕکێتە نوێکراوەکان یان دەستکاریکراوەکانی ئەم دانیشتنە
   };
-
-  /* ---------------- نموونەی داتای ماڕکێتەکان (بۆ کاتێک سەب بەیس هێشتا بەتاڵ بێت) ---------------- */
-  const SAMPLE_MARKETS = [
-    { account_code: '101', account_name: 'مارکێتی شانەدەر', neighborhood: 'سەرچنار', phone: '07701234567', latitude: 35.5684, longitude: 45.3852 },
-    { account_code: '102', account_name: 'سوپەرمارکێتی هەڵەبجە', neighborhood: 'توی مەلیک', phone: '07501234567', latitude: 35.5612, longitude: 45.4215 },
-    { account_code: '103', account_name: 'مارکێتی گۆیژە', neighborhood: 'گۆیژە', phone: '07709876543', latitude: 35.5750, longitude: 45.4420 },
-    { account_code: '104', account_name: 'هایپەرمارکێتی فامیلی مۆڵ', neighborhood: 'بەختیاری', phone: '07509876543', latitude: 35.5480, longitude: 45.3950 },
-    { account_code: '105', account_name: 'مارکێتی ڕاپەڕین', neighborhood: 'ڕاپەڕین', phone: '07705551234', latitude: 35.5890, longitude: 45.3620 },
-    { account_code: '106', account_name: 'مارکێتی سەرچنار', neighborhood: 'سەرچنار', phone: '07504449876', latitude: 35.5710, longitude: 45.3780 },
-    { account_code: '107', account_name: 'سوپەرمارکێتی سلێمانی', neighborhood: 'تووی مەلیك', phone: '07703332211', latitude: 35.5640, longitude: 45.4190 },
-    { account_code: '108', account_name: 'مارکێتی بەختیاری', neighborhood: 'بەختیاری', phone: '07502223344', latitude: 35.5520, longitude: 45.4010 },
-    { account_code: '109', account_name: 'مارکێتی کاردۆ', neighborhood: 'عەقاری', phone: '07701114455', latitude: 35.5580, longitude: 45.4310 },
-    { account_code: '110', account_name: 'هایپەرمارکێتی ماجیدی مۆڵ', neighborhood: 'تاسڵوجە', phone: '07507778899', latitude: 35.5390, longitude: 45.3450 },
-    { account_code: '112', account_name: 'مارکێتی توی مەلیک', neighborhood: 'توی مەلیک', phone: '07708889900', latitude: 35.5660, longitude: 45.4240 },
-    { account_code: '115', account_name: 'مارکێتی مێرگەپان', neighborhood: 'مێرگەپان', phone: '07506665544', latitude: 35.6120, longitude: 45.3500 },
-    { account_code: '120', account_name: 'سوپەرمارکێتی شارستان', neighborhood: 'کوردسات', phone: '07704443322', latitude: 35.5510, longitude: 45.4480 },
-    { account_code: '125', account_name: 'مارکێتی بەکرەجۆ', neighborhood: 'بەکرەجۆ', phone: '07501112233', latitude: 35.5320, longitude: 45.3320 }
-  ];
 
   /* ---------------- سۆڕتکردنی ماڕکێتەکان (بەسۆڕتی کۆدەکان) ---------------- */
 
@@ -74,85 +56,112 @@ const MarketsView = (() => {
     });
   }
 
-  /* ---------------- هێنانی داتاکان لە سەب بەیس ---------------- */
+  /* ---------------- پشکنینی هاوشێوەیی لەگەڵ گەڕان (بۆ ماڕکێتە لۆکاڵییەکان) ---------------- */
 
-  async function loadData(force = false) {
-    state.loading = true;
-    try {
-      let rows = await Store.loadMarkets(force);
-      if (!Array.isArray(rows)) rows = [];
-
-      // ئەگەر سەب بەیس و کاش هەردووکیان بەتاڵ بوون، داتای نموونەیی پێشنیار بکە
-      if (!rows.length) {
-        const cached = Store.getCachedMarkets();
-        if (cached && cached.length) {
-          rows = cached;
-        }
-      }
-
-      state.markets = sortMarketsList(rows);
-    } catch (err) {
-      console.warn('هەڵە لە هێنانی ماڕکێتەکان لە سەب بەیس:', err);
-      state.markets = sortMarketsList(Store.getCachedMarkets() || []);
-    } finally {
-      state.loading = false;
-    }
-  }
-
-  /* ---------------- فلتەرکردنی ماڕکێتەکان ---------------- */
-
-  function getFilteredMarkets(searchQuery = state.search) {
-    const rawSearch = (searchQuery || '').trim();
+  function matchesQuery(m, query) {
+    if (!m || !query) return false;
+    const rawSearch = query.trim();
     const cleanSearch = rawSearch.replace(/^[#＃]/, '').trim();
     const cleanLatin = UI.toLatinDigits(cleanSearch);
     const latinDigitsOnly = cleanLatin.replace(/\D/g, '');
     const isPureNumber = latinDigitsOnly.length > 0 && latinDigitsOnly === cleanLatin;
 
+    if (isPureNumber) {
+      const mCodeDigits = UI.toLatinDigits(m.account_code || '').replace(/\D/g, '');
+      const mCodeStr = String(m.account_code || '').trim();
+      if (latinDigitsOnly.length < 8) {
+        return mCodeDigits === latinDigitsOnly || mCodeStr === cleanSearch;
+      }
+      const mPhoneDigits = UI.toLatinDigits(m.phone || '').replace(/\D/g, '');
+      return mCodeDigits === latinDigitsOnly || mPhoneDigits.includes(latinDigitsOnly);
+    }
+
     const q = UI.norm(rawSearch);
-    const nhf = state.neighborhoodFilter ? UI.norm(state.neighborhoodFilter) : '';
+    return [
+      m.account_name,
+      m.neighborhood,
+      m.phone
+    ].some(v => UI.norm(v).includes(q));
+  }
 
-    const filtered = state.markets.filter(m => {
-      const hasLoc = m.latitude !== null && m.latitude !== undefined &&
-                     m.longitude !== null && m.longitude !== undefined;
+  /* ---------------- گەڕانی ئامانجدار لە سەب بەیس (تەنها لە کاتی گەڕاندا دێت) ---------------- */
 
-      if (state.onlyWithLocation && !hasLoc) return false;
-      if (nhf && UI.norm(m.neighborhood) !== nhf) return false;
-      if (!rawSearch) return true;
+  async function performSearch(query) {
+    const raw = (query || '').trim();
+    if (!raw) {
+      state.search = '';
+      state.hasSearched = false;
+      state.searching = false;
+      state.searchResults = [];
+      updateListDisplay();
+      return;
+    }
 
-      // ئەگەر بەکارهێنەر تەنها ژمارەی نووسی (وەک 2 یان #2)، تەنها و تەنها ئەو ماڕکێتە دەهێنێت کە کۆدەکەی ڕێک ئەو ژمارەیەیە (نەک 12 و 24 و 32)
-      if (isPureNumber) {
-        const mCodeDigits = UI.toLatinDigits(m.account_code || '').replace(/\D/g, '');
-        const mCodeStr = String(m.account_code || '').trim();
+    state.search = raw;
+    state.hasSearched = true;
+    state.searching = true;
+    updateListDisplay();
 
-        // بۆ کۆدی ئاسایی ماڕکێت (کەمتر لە ٨ ژمارە)، تەنها بەراوردی ڕێکی یەکسانبوون
-        if (latinDigitsOnly.length < 8) {
-          return mCodeDigits === latinDigitsOnly || mCodeStr === cleanSearch;
+    try {
+      let results = [];
+      if (typeof API !== 'undefined' && API.Markets && API.Markets.search) {
+        results = await API.Markets.search(raw);
+      } else {
+        // Fallback ئەگەر پێویست بوو
+        const clean = raw.replace(/^[#＃]/, '').trim();
+        const latin = UI.toLatinDigits(clean).trim();
+        const digits = latin.replace(/\D/g, '');
+        const isNum = digits.length > 0 && digits === latin;
+        const table = (typeof CONFIG !== 'undefined' && CONFIG.MARKETS_TABLE) || 'market_locaetion';
+        const url = (typeof CONFIG !== 'undefined' && CONFIG.RECORDS_URL) || '';
+        const key = (typeof CONFIG !== 'undefined' && CONFIG.RECORDS_KEY) || '';
+
+        if (url && key) {
+          const path = isNum && digits.length < 8
+            ? `/${table}?select=*&account_code=eq.${encodeURIComponent(digits)}`
+            : `/${table}?select=*&or=(account_name.ilike.*${encodeURIComponent(clean)}*,neighborhood.ilike.*${encodeURIComponent(clean)}*)&order=account_code.asc&limit=50`;
+          const res = await fetch(url + path, {
+            headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
+          });
+          if (res.ok) results = await res.json();
         }
-
-        // بۆ ژمارەی مۆبایل (٨ ژمارە یان زیاتر)، بەراوردی مۆبایلیش دەکات
-        const mPhoneDigits = UI.toLatinDigits(m.phone || '').replace(/\D/g, '');
-        return mCodeDigits === latinDigitsOnly || mPhoneDigits.includes(latinDigitsOnly);
       }
 
-      // ئەگەر دەق یان پیت بێت، بەپێی ناوی ماڕکێت یان گەڕەک یان تەلەفۆن دەگەڕێت
-      return [
-        m.account_name,
-        m.neighborhood,
-        m.phone
-      ].some(v => UI.norm(v).includes(q));
-    });
+      if (!Array.isArray(results)) results = [];
 
-    return sortMarketsList(filtered, state.sortMode);
+      // هاوتاکردنی لەگەڵ هەر ماڕکێتێکی دەستکاریکراو یان نوێکراوە لە کۆگای لۆکاڵدا
+      if (state.localMarkets.size > 0) {
+        for (const [code, m] of state.localMarkets.entries()) {
+          const match = matchesQuery(m, raw);
+          const existingIdx = results.findIndex(r => String(r.account_code) === String(code));
+          if (match) {
+            if (existingIdx !== -1) results[existingIdx] = m;
+            else results.unshift(m);
+          } else if (existingIdx !== -1) {
+            results.splice(existingIdx, 1);
+          }
+        }
+      }
+
+      state.searchResults = sortMarketsList(results);
+    } catch (err) {
+      console.warn('هەڵە لە گەڕانی ماڕکێت:', err);
+      state.searchResults = [];
+    } finally {
+      state.searching = false;
+      updateListDisplay();
+    }
   }
 
-  /* ---------------- دەرهێنانی لیستی گەڕەکە ناوازەکان ---------------- */
-
-  function getUniqueNeighborhoods() {
-    const list = state.markets.map(m => (m.neighborhood || '').trim()).filter(Boolean);
-    return [...new Set(list)].sort((a, b) => a.localeCompare(b, 'ckb'));
+  function updateListDisplay() {
+    if (!container) return;
+    const listEl = $('#mkt-page-list-container', container);
+    if (!listEl) return;
+    listEl.innerHTML = renderPageListHtml(state.searchResults);
+    bindPageListActions(listEl);
+    const clrBtn = $('#mkt-page-search-clear', container);
+    if (clrBtn) clrBtn.style.display = state.search ? 'flex' : 'none';
   }
-
-
 
   /* =========================================================
    *  مۆدالی زیادکردن و دەستکاریکردنی ماڕکێت (Supabase)
@@ -162,11 +171,15 @@ const MarketsView = (() => {
 
   async function getMergedZones() {
     const set = new Set();
-    // زۆنەکان لە ماڕکێتەکان
-    (state.markets || []).forEach(m => {
+    // زۆنەکان لە ماڕکێتە دۆزراوەکان
+    (state.searchResults || []).forEach(m => {
       const z = (m.neighborhood || '').trim();
       if (z) set.add(z);
     });
+    for (const m of state.localMarkets.values()) {
+      const z = (m.neighborhood || '').trim();
+      if (z) set.add(z);
+    }
     // زۆنەکان لە خشتەی زۆنەکانی سەب بەیس
     try {
       const cached = Store.getListsCache();
@@ -175,7 +188,7 @@ const MarketsView = (() => {
           const name = (z.name || '').trim();
           if (name) set.add(name);
         });
-      } else {
+      } else if (typeof API !== 'undefined' && API.Lists && API.Lists.zones) {
         const rows = await API.Lists.zones();
         if (Array.isArray(rows)) {
           rows.forEach(z => {
@@ -464,14 +477,20 @@ const MarketsView = (() => {
 
             // پشکنینی کۆدی دووبارە تەنها لە کاتی زیادکردنی نوێدا
             if (!isEdit) {
-              const duplicate = state.markets.find(m => {
-                const codeDigits = UI.toLatinDigits(m.account_code || '').replace(/\D/g, '');
-                return codeDigits === account_code;
-              });
-              if (duplicate) {
-                modalBody.querySelector('#mkt-f-code').focus();
-                return;
-              }
+              try {
+                if (typeof API !== 'undefined' && API.Markets && API.Markets.search) {
+                  const existing = await API.Markets.search(account_code);
+                  const isDup = (existing || []).some(m => {
+                    const codeDigits = UI.toLatinDigits(m.account_code || '').replace(/\D/g, '');
+                    return codeDigits === account_code;
+                  }) || state.localMarkets.has(account_code);
+
+                  if (isDup) {
+                    modalBody.querySelector('#mkt-f-code').focus();
+                    return;
+                  }
+                }
+              } catch (_) {}
             }
 
             // پشکنینی زۆنی نوێ و تۆمارکردنی لە سەب بەیس
@@ -503,22 +522,25 @@ const MarketsView = (() => {
                 } catch (e) {
                   console.warn('API update failed, updating locally:', e);
                 }
-                const idx = state.markets.findIndex(m => String(m.account_code) === String(account_code));
-                if (idx !== -1) state.markets[idx] = { ...state.markets[idx], ...payload };
+                state.localMarkets.set(account_code, payload);
+                const idx = state.searchResults.findIndex(m => String(m.account_code) === String(account_code));
+                if (idx !== -1) state.searchResults[idx] = payload;
               } else {
                 try {
                   await API.Markets.insert(payload);
                 } catch (e) {
                   console.warn('API insert failed, saving locally:', e);
                 }
-                state.markets.push(payload);
+                state.localMarkets.set(account_code, payload);
+                state.search = account_code;
+                const pageSearch = $('#mkt-page-search', container);
+                if (pageSearch) pageSearch.value = account_code;
+                state.hasSearched = true;
+                state.searchResults = [payload];
               }
 
-              state.markets = sortMarketsList(state.markets);
-              Store.saveMarketsCache(state.markets);
               close();
-
-              renderLayout();
+              updateListDisplay();
             } catch (err) {
               console.error('هەڵە لە پاشەکەوتکردن:', err);
             }
@@ -531,7 +553,8 @@ const MarketsView = (() => {
   /* ---------------- سڕینەوەی ماڕکێت ---------------- */
 
   async function confirmDeleteMarket(accountCode) {
-    const market = state.markets.find(m => String(m.account_code) === String(accountCode));
+    const market = state.searchResults.find(m => String(m.account_code) === String(accountCode)) ||
+                   state.localMarkets.get(accountCode);
     const label = market ? `${market.account_name} (#${accountCode})` : `#${accountCode}`;
 
     const ok = await UI.confirmDialog(`ئایا دڵنیایت لە سڕینەوەی ماڕکێتی «${label}» لە سیستەم و سەب بەیس؟`, {
@@ -549,10 +572,9 @@ const MarketsView = (() => {
         console.warn('API delete failed, removing locally:', e);
       }
 
-      state.markets = state.markets.filter(m => String(m.account_code) !== String(accountCode));
-      Store.saveMarketsCache(state.markets);
-
-      renderLayout();
+      state.localMarkets.delete(accountCode);
+      state.searchResults = state.searchResults.filter(m => String(m.account_code) !== String(accountCode));
+      updateListDisplay();
     } catch (err) {
       console.error('هەڵە لە سڕینەوە:', err);
     }
@@ -579,9 +601,9 @@ const MarketsView = (() => {
     return true;
   }
 
-  /* ---------------- کردنەوەی ڕاستەوخۆ لە ئەپی Maps.me ---------------- */
+  /* ---------------- کردنەوەی لۆکەیشنی ماڕکێت لە ئەپەکانی نەخشە (Maps.me / Google Maps / Geo) ---------------- */
 
-  function openInMapsMe(market) {
+  function openLocationApp(market) {
     if (!market) return;
     const lat = market.latitude !== null && market.latitude !== undefined ? parseFloat(market.latitude) : null;
     const lon = market.longitude !== null && market.longitude !== undefined ? parseFloat(market.longitude) : null;
@@ -589,16 +611,158 @@ const MarketsView = (() => {
     const code = String(market.account_code || '').trim();
     const label = code ? `${name} (#${code})` : name;
 
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-
-    const mapsmeUrl = `mapsme://map?v=1&ll=${lat},${lon}&n=${encodeURIComponent(label)}`;
-
-    try {
-      window.location.href = mapsmeUrl;
-    } catch (e) {
-      console.warn('Maps.me URL launch error:', e);
-      window.open(mapsmeUrl, '_blank');
+    // پشکنینی پۆوتان: ئەگەر تۆمار نەکرابێت
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      UI.confirmDialog(`📍 ئەم ماڕکێتە (#${code} - ${name}) تا ئێستا لۆکەیشنی بۆ دیاری نەکراوە.\n\nئایا دەتەوێت ئێستا شوێنەکەی لەسەر نەخشە دیاری بکەیت؟`, {
+        okLabel: '📍 دیاریکردنی شوێن',
+        cancelLabel: 'داخستن'
+      }).then(ok => {
+        if (ok) openAddEditModal(market);
+      });
+      return;
     }
+
+    // ئەگەر بەکارهێنەر پێشتر ئەپێکی دڵخوازی هەڵبژاردبێت:
+    let savedPref = null;
+    try { savedPref = localStorage.getItem('dlv_preferred_map_app'); } catch (_) {}
+
+    if (savedPref === 'mapsme') {
+      launchMapsMe(lat, lon, label);
+      return;
+    } else if (savedPref === 'google') {
+      launchGoogleMaps(lat, lon);
+      return;
+    } else if (savedPref === 'geo') {
+      launchGeo(lat, lon, label);
+      return;
+    }
+
+    // پیشاندانی مۆداڵی هەڵبژاردنی ئەپەکان
+    showMapChooserModal(market, lat, lon, label);
+  }
+
+  function launchMapsMe(lat, lon, label) {
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const labelEnc = encodeURIComponent(label);
+    const mapsmeScheme = `mapsme://map?v=1&ll=${lat},${lon}&n=${labelEnc}`;
+
+    if (isAndroid) {
+      // لە ئەندرۆیددا ڕێگای Intent بەکاردەهێنرێت بۆ ئەوەی ڕاستەوخۆ ئەپی Maps.me بکاتەوە
+      const intentUrl = `intent://map?v=1&ll=${lat},${lon}&n=${labelEnc}#Intent;scheme=mapsme;package=com.mapswithme.maps.pro;S.browser_fallback_url=${encodeURIComponent(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`)};end`;
+      try {
+        window.location.href = intentUrl;
+      } catch (_) {
+        window.location.href = mapsmeScheme;
+      }
+    } else {
+      // بۆ iOS یان ئامێرەکانی تر
+      const link = document.createElement('a');
+      link.href = mapsmeScheme;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  }
+
+  function launchGoogleMaps(lat, lon) {
+    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+    window.open(url, '_blank');
+  }
+
+  function launchGeo(lat, lon, label) {
+    const url = `geo:${lat},${lon}?q=${lat},${lon}(${encodeURIComponent(label)})`;
+    window.location.href = url;
+  }
+
+  function showMapChooserModal(market, lat, lon, label) {
+    const modalBody = document.createElement('div');
+    modalBody.innerHTML = `
+      <div style="text-align: right; direction: rtl;">
+        <div style="background: var(--surface-2); padding: 12px 14px; border-radius: 10px; margin-bottom: 14px; border: 1px solid var(--border);">
+          <div style="font-weight: 800; font-size: 1.05rem; color: var(--accent);">${UI.esc(label)}</div>
+          <div style="font-size: 0.82rem; color: var(--muted); margin-top: 4px; direction: ltr; font-family: monospace;">
+            📍 پۆوتان: ${lat}, ${lon}
+          </div>
+        </div>
+
+        <div style="font-size: 0.9rem; font-weight: 700; color: var(--text); margin-bottom: 8px;">
+          ئەپێک هەڵبژێرە بۆ کردنەوەی شوێنەکە:
+        </div>
+
+        <div class="mkt-map-chooser-list">
+          <!-- دوگمەی Maps.me -->
+          <button type="button" class="mkt-map-app-btn mapsme" id="mkt-btn-app-mapsme">
+            <div class="mkt-map-app-icon">🗺️</div>
+            <div class="mkt-map-app-details">
+              <span class="mkt-map-app-title">ئەپی MAPS.ME</span>
+              <span class="mkt-map-app-sub">بۆ نەخشەی ئۆفلاین لە ئەپی Maps.me</span>
+            </div>
+            <span>➜</span>
+          </button>
+
+          <!-- دوگمەی Google Maps -->
+          <button type="button" class="mkt-map-app-btn google" id="mkt-btn-app-google">
+            <div class="mkt-map-app-icon">📍</div>
+            <div class="mkt-map-app-details">
+              <span class="mkt-map-app-title">ئەپی Google Maps</span>
+              <span class="mkt-map-app-sub">نەخشەی گوگڵ (لە هەموو مۆبایل و کۆمپیوتەرێک کاردەکات)</span>
+            </div>
+            <span>➜</span>
+          </button>
+
+          <!-- دوگمەی هەموو ئەپەکان -->
+          <button type="button" class="mkt-map-app-btn geo" id="mkt-btn-app-geo">
+            <div class="mkt-map-app-icon">🧭</div>
+            <div class="mkt-map-app-details">
+              <span class="mkt-map-app-title">هەموو ئەپەکانی مۆبایل (Geo)</span>
+              <span class="mkt-map-app-sub">سیستەمی مۆبایل دەپرسێت بە کام ئەپ دەیکەیتەوە</span>
+            </div>
+            <span>➜</span>
+          </button>
+        </div>
+
+        <!-- هەڵبژاردنی هەمیشەیی -->
+        <label style="display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 0.85rem; color: var(--muted); cursor: pointer;">
+          <input type="checkbox" id="mkt-save-pref-app" style="width: 16px; height: 16px; accent-color: var(--accent);">
+          <span>ئەم ئەپە بە بنەڕەتی دابنێ بۆ جارەکانی داهاتوو</span>
+        </label>
+      </div>
+    `;
+
+    const { close } = UI.openModal({
+      title: '🗺️ کردنەوەی شوێنی ماڕکێت',
+      body: modalBody,
+      actions: [
+        { label: 'داخستن', className: 'btn-ghost', onClick: () => close() }
+      ]
+    });
+
+    const chk = modalBody.querySelector('#mkt-save-pref-app');
+
+    modalBody.querySelector('#mkt-btn-app-mapsme')?.addEventListener('click', () => {
+      try {
+        if (chk && chk.checked) localStorage.setItem('dlv_preferred_map_app', 'mapsme');
+      } catch (_) {}
+      close();
+      launchMapsMe(lat, lon, label);
+    });
+
+    modalBody.querySelector('#mkt-btn-app-google')?.addEventListener('click', () => {
+      try {
+        if (chk && chk.checked) localStorage.setItem('dlv_preferred_map_app', 'google');
+      } catch (_) {}
+      close();
+      launchGoogleMaps(lat, lon);
+    });
+
+    modalBody.querySelector('#mkt-btn-app-geo')?.addEventListener('click', () => {
+      try {
+        if (chk && chk.checked) localStorage.setItem('dlv_preferred_map_app', 'geo');
+      } catch (_) {}
+      close();
+      launchGeo(lat, lon, label);
+    });
   }
 
 
@@ -606,23 +770,17 @@ const MarketsView = (() => {
    *  ڕێندەری ڕووکاری فۆڕمەکە (Main Page Layout)
    * ========================================================= */
 
-  async function render(el) {
+  function render(el) {
     container = el;
-    await loadData();
+    state.search = '';
+    state.searchResults = [];
+    state.hasSearched = false;
+    state.searching = false;
     renderLayout();
   }
 
   function renderLayout() {
     if (!container) return;
-
-    const list = getFilteredMarkets(state.search);
-    const totalCount = state.markets.length;
-    const sorted = sortMarketsList(state.markets);
-
-    const firstCode = sorted.length ? sorted[0].account_code : '—';
-    const lastCode = sorted.length ? sorted[sorted.length - 1].account_code : '—';
-    const withLocCount = state.markets.filter(m => m.latitude !== null && m.latitude !== undefined && m.longitude !== null && m.longitude !== undefined).length;
-    const withPhoneCount = state.markets.filter(m => (m.phone || '').trim().length > 0).length;
 
     container.innerHTML = `
       <div class="settings-view markets-view mkt-custom-page" style="max-width: 960px; margin: 0 auto; padding: 20px 14px;">
@@ -637,7 +795,7 @@ const MarketsView = (() => {
               </div>
               <div>
                 <h3 style="margin:0; font-size: 1.15rem; font-weight: 800;">فۆڕمی ماڕکێتەکان</h3>
-                <span style="font-size: 0.78rem; color: var(--muted);">ڕیزبەندی بەپێی کۆدەکان</span>
+                <span style="font-size: 0.78rem; color: var(--muted);">گەڕانی خێرا و دەستکاری بەبێ بارگرانی</span>
               </div>
             </div>
 
@@ -655,16 +813,16 @@ const MarketsView = (() => {
           <div class="mkt-search-input-wrap">
             <span class="mkt-input-search-ico">${UI.icon('search', 18)}</span>
             <input type="search" id="mkt-page-search" class="mkt-code-search-input"
-                   placeholder="گەڕان بەپێی کۆدی ژمارەیی یان ناوی ماڕکێت..."
-                   value="${UI.esc(state.search)}">
-            ${state.search ? `<button type="button" class="mkt-clear-search-btn" id="mkt-page-search-clear">✕</button>` : ''}
+                   placeholder="گەڕان بەپێی کۆدی ماڕکێت یان ناوی ماڕکێت..."
+                   value="${UI.esc(state.search)}" autocomplete="off" autofocus>
+            <button type="button" class="mkt-clear-search-btn" id="mkt-page-search-clear" style="display: ${state.search ? 'flex' : 'none'};">✕</button>
           </div>
 
         </div>
 
-        <!-- ٣. لیستی ماڕکێتەکان لەسەر پەڕەکە -->
+        <!-- لیستی ماڕکێتەکان لەسەر پەڕەکە -->
         <div class="mkt-list-container" id="mkt-page-list-container">
-          ${renderPageListHtml(list)}
+          ${renderPageListHtml(state.searchResults)}
         </div>
 
       </div>
@@ -676,33 +834,37 @@ const MarketsView = (() => {
   /* ---------------- ڕێندەری لیستی سەر پەڕەکە ---------------- */
 
   function renderPageListHtml(list) {
-    if (!list.length) {
-      if (!state.markets.length) {
-        return `
-          <div class="card" style="padding: 32px 20px; text-align: center; border: 2px dashed #f59e0b; background: rgba(245, 158, 11, 0.05);">
-            <div style="font-size: 40px; margin-bottom: 8px;">🏪</div>
-            <h3 style="margin: 0 0 8px; font-weight: 800;">هیچ داتایەکی ماڕکێت لە سەب بەیس نەهێنراوە</h3>
-            <p style="color: var(--text); font-size: 0.92rem; max-width: 520px; margin: 0 auto 14px; line-height: 1.7;">
-              دەتوانیت لە ڕێگەی دوگمەی «نوێکردنەوە» داتاکان بهێنیت، یان ماڕکێتی نوێ زیاد بکەیت.
-            </p>
-            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;">
-              <button type="button" class="btn btn-primary" id="mkt-page-refresh-empty-btn">
-                🔄 نوێکردنەوە لە سەب بەیس
-              </button>
-              <button type="button" class="btn btn-ghost" id="mkt-page-empty-add-btn">
-                ➕ زیادکردنی ماڕکێتی نوێ
-              </button>
-            </div>
-          </div>
-        `;
-      }
-
+    // ئەگەر بەکارهێنەر هێشتا گەڕانی نەکردووە (بۆ کردنەوەی دەستبەجێ بەبێ هێنانی هەموو ماڕکێتەکان)
+    if (!state.hasSearched || !state.search.trim()) {
       return `
-        <div class="card" style="padding: 30px 20px; text-align: center;">
-          <div style="font-size: 32px; margin-bottom: 8px;">🔍</div>
-          <div style="font-weight: 700;">هیچ ماڕکێتێک بەم گەڕانە نەدۆزرایەوە</div>
-          <p style="font-size: 0.85rem; color: var(--muted); margin: 6px 0 14px;">
-            تکایە نووسینی گەڕانەکەت بگۆڕە.
+        <div class="card mkt-search-prompt-card">
+          <div class="mkt-search-prompt-icon">🔍</div>
+          <h3 class="mkt-search-prompt-title">گەڕان بۆ ماڕکێتەکان</h3>
+          <p class="mkt-search-prompt-desc">
+            تکایە لە خانەی سەرەوە کۆدی ماڕکێت یان ناوی ماڕکێت بنووسە بۆ بینین و دەستکاریکردنی ماڕکێتەکە.
+          </p>
+        </div>
+      `;
+    }
+
+    // ئەگەر لە کاتی گەڕاندایە لە سەب بەیس
+    if (state.searching) {
+      return `
+        <div class="card mkt-search-loading-card">
+          <div class="mkt-search-spinner"></div>
+          <div style="font-weight: 700; color: var(--accent); font-size: 0.95rem;">دەگەڕێت لە سەب بەیس...</div>
+        </div>
+      `;
+    }
+
+    // ئەگەر گەڕان کرا بەڵام هیچ ماڕکێتێک نەدۆزرایەوە
+    if (!list || !list.length) {
+      return `
+        <div class="card" style="padding: 34px 20px; text-align: center;">
+          <div style="font-size: 32px; margin-bottom: 8px;">❌</div>
+          <div style="font-weight: 800; font-size: 1.05rem;">هیچ ماڕکێتێک بەم ناونیشانە نەدۆزرایەوە</div>
+          <p style="font-size: 0.88rem; color: var(--muted); margin: 6px 0 14px;">
+            هیچ ماڕکێتێک بە کۆد یان ناوی «${UI.esc(state.search)}» نەدۆزرایەوە.
           </p>
           <button type="button" class="btn btn-ghost btn-sm" id="mkt-page-clear-search-link">
             پاککردنەوەی گەڕان
@@ -780,6 +942,8 @@ const MarketsView = (() => {
 
   /* ---------------- گرێدانی ئیڤێنتەکانی سەر پەڕەکە ---------------- */
 
+  let searchDebounceTimer = null;
+
   function bindPageEvents() {
     if (!container) return;
 
@@ -787,22 +951,45 @@ const MarketsView = (() => {
     const pageSearch = $('#mkt-page-search', container);
     if (pageSearch) {
       pageSearch.addEventListener('input', e => {
-        state.search = e.target.value;
-        const listEl = $('#mkt-page-list-container', container);
-        if (listEl) {
-          listEl.innerHTML = renderPageListHtml(getFilteredMarkets(state.search));
-          bindPageListActions(listEl);
-        }
+        const val = e.target.value;
         const clrBtn = $('#mkt-page-search-clear', container);
-        if (clrBtn) clrBtn.style.display = state.search ? 'flex' : 'none';
+        if (clrBtn) clrBtn.style.display = val.trim() ? 'flex' : 'none';
+
+        if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+
+        if (!val.trim()) {
+          state.search = '';
+          state.hasSearched = false;
+          state.searching = false;
+          state.searchResults = [];
+          updateListDisplay();
+          return;
+        }
+
+        searchDebounceTimer = setTimeout(() => {
+          performSearch(val);
+        }, 220);
+      });
+
+      pageSearch.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+          performSearch(pageSearch.value);
+        }
       });
     }
 
     const clearPageSearch = $('#mkt-page-search-clear', container);
     if (clearPageSearch) {
       clearPageSearch.addEventListener('click', () => {
+        if (pageSearch) pageSearch.value = '';
         state.search = '';
-        renderLayout();
+        state.hasSearched = false;
+        state.searching = false;
+        state.searchResults = [];
+        updateListDisplay();
+        if (pageSearch) pageSearch.focus();
       });
     }
 
@@ -812,28 +999,12 @@ const MarketsView = (() => {
 
     const refreshBtn = $('#mkt-page-refresh-btn', container);
     if (refreshBtn) {
-      refreshBtn.addEventListener('click', async () => {
-        await loadData(true);
-        renderLayout();
-      });
-    }
-
-    const emptyAddBtn = $('#mkt-page-empty-add-btn', container);
-    if (emptyAddBtn) emptyAddBtn.addEventListener('click', () => openAddEditModal());
-
-    const emptyRefreshBtn = $('#mkt-page-refresh-empty-btn', container);
-    if (emptyRefreshBtn) {
-      emptyRefreshBtn.addEventListener('click', async () => {
-        await loadData(true);
-        renderLayout();
-      });
-    }
-
-    const clearSearchLink = $('#mkt-page-clear-search-link', container);
-    if (clearSearchLink) {
-      clearSearchLink.addEventListener('click', () => {
-        state.search = '';
-        renderLayout();
+      refreshBtn.addEventListener('click', () => {
+        if (state.search.trim()) {
+          performSearch(state.search);
+        } else if (pageSearch) {
+          pageSearch.focus();
+        }
       });
     }
 
@@ -853,13 +1024,31 @@ const MarketsView = (() => {
   }
 
   function bindPageListActions(root) {
+    if (!root) return;
+
+    // لینکی پاککردنەوەی گەڕان
+    const clearLink = root.querySelector('#mkt-page-clear-search-link');
+    if (clearLink) {
+      clearLink.addEventListener('click', () => {
+        const pageSearch = $('#mkt-page-search', container);
+        if (pageSearch) pageSearch.value = '';
+        state.search = '';
+        state.hasSearched = false;
+        state.searching = false;
+        state.searchResults = [];
+        updateListDisplay();
+        if (pageSearch) pageSearch.focus();
+      });
+    }
+
     // دەستکاری تۆمار
     root.querySelectorAll('[data-action="edit-mkt"]').forEach(btn => {
       const handler = e => {
         e.stopPropagation();
         closeActiveCard();
         const code = btn.getAttribute('data-code');
-        const market = state.markets.find(m => String(m.account_code) === String(code));
+        const market = state.searchResults.find(m => String(m.account_code) === String(code)) ||
+                       state.localMarkets.get(code);
         if (market) openAddEditModal(market);
       };
       btn.addEventListener('click', handler);
@@ -878,19 +1067,23 @@ const MarketsView = (() => {
       btn.addEventListener('pointerdown', e => e.stopPropagation());
     });
 
-    // بەڕێوەبردنی ڕاکێشان (Swipe) و داگرتنی ویندۆ بۆ ئەپی Maps.me
+    // بەڕێوەبردنی ڕاکێشان (Swipe) و داگرتنی ویندۆ بۆ ئەپەکانی نەخشە
     root.querySelectorAll('.mkt-swipe-item').forEach(item => {
       const front = item.querySelector('.mkt-card-front');
       const code = item.getAttribute('data-code');
-      const market = state.markets.find(m => String(m.account_code) === String(code));
+      const market = state.searchResults.find(m => String(m.account_code) === String(code)) ||
+                     state.localMarkets.get(code);
       if (!front) return;
 
       let startX = 0;
       let startY = 0;
+      let startTime = 0;
       let isDragging = false;
       let isHorizontal = false;
+      let isVertical = false;
       let initialOffset = 0;
       let pointerId = null;
+      let movedDistance = 0;
 
       // پانی دوگمەکان: بۆ سایەق/دابەشکار/مەندوب 1 ئایکۆنە (60px)، بۆ بەڕێوەبەر 2 ئایکۆنە (120px)
       const maxReveal = canDeleteMarket() ? 120 : 60;
@@ -907,8 +1100,11 @@ const MarketsView = (() => {
         pointerId = e.pointerId;
         startX = e.clientX;
         startY = e.clientY;
+        startTime = Date.now();
         isDragging = false;
         isHorizontal = false;
+        isVertical = false;
+        movedDistance = 0;
         initialOffset = front.dataset.offset ? parseFloat(front.dataset.offset) : 0;
 
         try {
@@ -937,13 +1133,19 @@ const MarketsView = (() => {
       };
 
       const onPointerMove = e => {
+        if (isVertical) return;
+
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
+        movedDistance = Math.hypot(dx, dy);
 
-        if (!isHorizontal) {
-          if (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) {
+        if (!isHorizontal && !isVertical) {
+          // ئەگەر بە ڕوونی ئاسۆیی بێت و زیاتر لە 12 پیکسڵ جوڵابێت
+          if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3) {
             isHorizontal = true;
-          } else if (Math.abs(dy) > 8) {
+          } else if (Math.abs(dy) > 10) {
+            // جوڵەی ستوونی (Scroll) پەڕەکە تێک نەدرێت
+            isVertical = true;
             item.classList.remove('is-dragging');
             if (pointerId !== null) {
               try { front.releasePointerCapture(pointerId); } catch (_) {}
@@ -975,21 +1177,20 @@ const MarketsView = (() => {
         }
 
         const totalDx = e.clientX - startX;
+        const elapsed = Date.now() - startTime;
 
         if (isDragging) {
           const finalX = initialOffset + totalDx;
           const threshold = maxReveal * 0.28;
 
-          // کاتێک بۆ لای چەپ دەبرێت (finalX < -threshold)
-          // ویندۆکە بە قەبارەی دوگمەکان دەچێتە چەپ و دوگمەکانی لای ڕاست دەردەکەون
+          // کاتێک بۆ لای چەپ دەبرێت
           if (finalX < -threshold) {
             front.style.transform = `translateX(-${maxReveal}px)`;
             front.dataset.offset = -maxReveal;
             front.classList.add('is-open');
             activeOpenCard = front;
           }
-          // کاتێک بۆ لای ڕاست دەبرێت (finalX > threshold)
-          // ویندۆکە بە قەبارەی دوگمەکان دەچێتە ڕاست و دوگمەکانی لای چەپ دەردەکەون
+          // کاتێک بۆ لای ڕاست دەبرێت
           else if (finalX > threshold) {
             front.style.transform = `translateX(${maxReveal}px)`;
             front.dataset.offset = maxReveal;
@@ -1003,7 +1204,7 @@ const MarketsView = (() => {
             front.classList.remove('is-open');
             if (activeOpenCard === front) activeOpenCard = null;
           }
-        } else {
+        } else if (!isVertical && movedDistance < 14 && elapsed < 650) {
           // داگرتنی ئاسایی (Tap)
           if (front.classList.contains('is-open')) {
             front.style.transform = '';
@@ -1011,13 +1212,30 @@ const MarketsView = (() => {
             front.classList.remove('is-open');
             activeOpenCard = null;
           } else {
-            // ڕاستەوخۆ دەچێتە ئەپی Maps.me
-            openInMapsMe(market);
+            openLocationApp(market);
           }
         }
       };
 
       front.addEventListener('pointerdown', onPointerDown);
+
+      // بەستنی کلیکی ڕاستەوخۆ بۆ دڵنیابوونەوە لە سەرکەوتنی 100%ی داگرتن
+      front.addEventListener('click', e => {
+        if (e.target.closest('a[href^="tel:"], .mkt-card-phone')) return;
+        if (front.classList.contains('is-open')) return;
+        if (isDragging || movedDistance >= 14) return;
+        openLocationApp(market);
+      });
+
+      // کلیک لەسەر باجی نەخشە بە جیاواز
+      const badge = front.querySelector('.mkt-card-mapsme-badge, .mkt-card-no-gps');
+      if (badge) {
+        badge.style.cursor = 'pointer';
+        badge.addEventListener('click', e => {
+          e.stopPropagation();
+          openLocationApp(market);
+        });
+      }
     });
 
     // داگرتن لە هەر شوێنێکی تر کارتی کراوە دابخات
