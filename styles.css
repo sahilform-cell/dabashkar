@@ -2789,7 +2789,7 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
 .btn.anim-done .anim-layer.a-truck .sp { animation-duration: .4s; }
 
 @media (max-width: 560px) {
-  #rep-print, .rep-row2 { display: none !important; }
+  #rep-print, #rep-excel-btn, .rep-row2 { display: none !important; }
 }
 
 @media (max-width: 560px) {
@@ -2808,7 +2808,7 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
 /* ڕاپۆرت — شێوازی دیسکتۆپ لە مووبایلدا (ئۆپشنی دەسەڵات rep_desktop_layout) */
 @media (max-width: 560px) {
   .rep-desktop .rep-row2 { display: flex !important; }
-  .rep-desktop #rep-print { display: inline-flex !important; }
+  .rep-desktop #rep-print, .rep-desktop #rep-excel-btn { display: inline-flex !important; }
   .rep-desktop .rep-row2 .field { flex: 1 1 calc(50% - 8px); }
   .rep-desktop .rep-row2 .rep-f2-search { flex: 1 1 100%; }
 }
@@ -3409,18 +3409,57 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
   position: absolute;
   top: 4px;
   left: 4px;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: rgba(220, 38, 38, 0.85);
   color: #fff;
   border: none;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 2;
 }
+
+.mkt-thumb-box .mkt-thumb-rot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.85);
+  color: #fff;
+  border: none;
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: transform 0.2s;
+}
+
+.mkt-thumb-box .mkt-thumb-rot:hover {
+  transform: rotate(90deg);
+  background: #3b82f6;
+}
+
+.btn-warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  border: none;
+}
+.btn-warning:hover { filter: brightness(1.08); }
+
+.btn-success {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  border: none;
+}
+.btn-success:hover { filter: brightness(1.08); }
 
 .mkt-scanned-group-wrap {
   border-top: 1px solid var(--border);
@@ -3498,6 +3537,52 @@ html.hide-icons .toast-ico .lic { display: inline-block !important; }
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mkt-badge-warn-loc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.mkt-badge-has-loc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.mkt-manual-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 10px;
+}
+
+.mkt-manual-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 540px) {
+  .mkt-manual-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .mkt-search-input-wrap {

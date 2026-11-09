@@ -1321,17 +1321,18 @@ const MarketsView = (() => {
       const lat = Number(m.latitude);
       const lng = Number(m.longitude);
       const pmUuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `mkt-${idx}-${code}`;
+      const stopNum = idx + 1;
 
       return `
   <Placemark>
-    <name>[${code}] ${name}</name>
+    <name>${stopNum}. [${code}] ${name}</name>
     <TimeStamp><when>${isoDate}</when></TimeStamp>
     <styleUrl>#placemark-red</styleUrl>
     <Point><coordinates>${lng},${lat}</coordinates></Point>
-    <description><![CDATA[کۆدی ئەکاونت: ${code}<br>ناوی ماڕکێت: ${name}<br>زۆن: ${zone}<br>تەلەفۆن: ${phone}]]></description>
+    <description><![CDATA[ڕیزبەندی: ${stopNum}<br>کۆدی ئەکاونت: ${code}<br>ناوی ماڕکێت: ${name}<br>زۆن: ${zone}<br>تەلەفۆن: ${phone}]]></description>
     <ExtendedData xmlns:mwm="https://maps.me">
-      <mwm:name>${name}</mwm:name>
-      <mwm:customName>[${code}] ${name}</mwm:customName>
+      <mwm:name>${stopNum}. ${name}</mwm:name>
+      <mwm:customName>${stopNum}. [${code}] ${name}</mwm:customName>
       <mwm:scale>18</mwm:scale>
       <mwm:visibility>1</mwm:visibility>
       <mwm:lastModified>${isoDate}</mwm:lastModified>
@@ -1433,189 +1434,314 @@ const MarketsView = (() => {
     }
   }
 
-  /* ---------------- خوێندنەوەی دەقی وێنەی کاعەز و دەرهێنانی کۆدەکان ---------------- */
+  /* =========================================================
+   *  بەشی کامێرا و دروستکردنی فایلی ماپ (KMZ) بە سکانی لۆکاڵ (بێ AI)
+   * ========================================================= */
 
-  let tesseractLoadingPromise = null;
-  function ensureTesseract() {
-    if (window.Tesseract) return Promise.resolve(window.Tesseract);
-    if (tesseractLoadingPromise) return tesseractLoadingPromise;
-    tesseractLoadingPromise = new Promise((resolve) => {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-      script.onload = () => resolve(window.Tesseract);
-      script.onerror = () => {
-        console.warn('Tesseract load failed (offline or CDN blocked)');
-        resolve(null);
+  function rotateImageFile(file, degrees = 90) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const objUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objUrl);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (degrees === 90 || degrees === 270) {
+          canvas.width = img.height;
+          canvas.height = img.width;
+        } else {
+          canvas.width = img.width;
+          canvas.height = img.height;
+        }
+
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((degrees * Math.PI) / 180);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+        canvas.toBlob((blob) => {
+          if (!blob) return resolve(file);
+          const rotatedFile = new File([blob], file.name || 'rotated.jpg', { type: 'image/jpeg' });
+          resolve(rotatedFile);
+        }, 'image/jpeg', 0.92);
       };
-      document.head.appendChild(script);
+      img.onerror = () => {
+        URL.revokeObjectURL(objUrl);
+        resolve(file);
+      };
+      img.src = objUrl;
     });
-    return tesseractLoadingPromise;
   }
 
-  /* ---------------- شیکردنەوەی خشتەی مانیفێستی کاغەز (ڕیز، کۆد، لایەنی حساب) ----------------
-   * خشتەی کاغەز پێکدێت لە سێ کۆڵۆم:
-   * ١. ڕیز: تەنها ژمارەی ڕیزبەندییە (1، 2، 3...) - پشتگوێ دەخرێت بۆ ئەوەی لەگەڵ کۆد تێکەڵ نەبێت
-   * ٢. کۆد: کۆڵۆمی سەرەکی و گرینگ - بەوردی کۆدەکان وەردەگرێت و لە سەب بەیس دەیدۆزێتەوە
-   * ٣. لایەنی حساب: ناوی ماڕکێتەکان - بۆ دڵنیابوونەوە لە دروستی کۆدەکان، یان لە کاتی نەدۆزینەوەی کۆد وەک بەدیل بەکاردێت
-   * ------------------------------------------------------------------------------------------ */
-
-  function parsePaperManifestRows(rawText) {
-    if (!rawText) return [];
-
-    const latin = UI.toLatinDigits(rawText);
-    const lines = latin.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    const rows = [];
-    let expectedSeq = 1;
-
-    for (const line of lines) {
-      // ١. پەڕاندنی سەردێڕەکانی خشتە
-      if (/(ڕیز|تەرتيب|ت|ژ|seq|row|no)/i.test(line) && /(کۆد|كود|code)/i.test(line)) continue;
-      if (/(لایەنی\s*حساب|حساب|customer|account|ناو)/i.test(line) && /(کۆد|كود|ڕیز)/i.test(line)) continue;
-      // پەڕاندنی کۆی گشتی، بەروار، واژوو، لاپەڕە
-      if (/(کۆی گشتی|مجموع|total|بەروار|date|واژوو|لاپەڕە|page)/i.test(line)) continue;
-
-      const tokens = line.split(/[\t|;,]|\s{2,}|\s+/).map(t => t.trim()).filter(Boolean);
-      const nums = [];
-      const textTokens = [];
-
-      tokens.forEach(tok => {
-        const cleanNum = tok.replace(/^[^\d]+|[^\d]+$/g, '');
-        if (/^\d{1,10}$/.test(cleanNum)) {
-          nums.push(cleanNum);
-        } else if (!/^[#\-\.,;:\/\\|]+$/.test(tok)) {
-          textTokens.push(tok);
-        }
-      });
-
-      if (!nums.length && !textTokens.length) continue;
-
-      let seq = null;
-      let code = null;
-
-      if (nums.length >= 2) {
-        // دیاریکردنی ئەوەی کام ژمارە زنجیرەی ڕیزبەندییە (1، 2، 3...) و کامەی کۆدە
-        const seqMatchIdx = nums.findIndex(n => parseInt(n, 10) === expectedSeq);
-        if (seqMatchIdx !== -1) {
-          seq = nums[seqMatchIdx];
-          const remaining = nums.filter((_, i) => i !== seqMatchIdx);
-          code = remaining[0];
-          expectedSeq++;
-        } else {
-          // ئەگەر بە ڕێزبەندی نەبوو، کەمترین ژمارە یان ڕیزبەندی ڕیز دیاری دەکەین
-          const nFirst = parseInt(nums[0], 10);
-          const nLast = parseInt(nums[nums.length - 1], 10);
-          const nextExpected = rows.length + 1;
-
-          if (nFirst === nextExpected || (nFirst < nLast && nFirst < 500)) {
-            seq = nums[0];
-            code = nums[1];
-          } else if (nLast === nextExpected || (nLast < nFirst && nLast < 500)) {
-            seq = nums[nums.length - 1];
-            code = nums[0];
+  function prepareImageForOcr(file, maxWidth = 1800) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const objUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objUrl);
+        let w = img.width;
+        let h = img.height;
+        if (w > maxWidth || h > maxWidth) {
+          if (w > h) {
+            h = Math.round((h * maxWidth) / w);
+            w = maxWidth;
           } else {
-            seq = nums[0];
-            code = nums[1];
+            w = Math.round((w * maxWidth) / h);
+            h = maxWidth;
           }
         }
-      } else if (nums.length === 1) {
-        code = nums[0];
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        // ڕوونکردنەوەی وێنە و زیادکردنی کۆنتراست بۆ دیاربوونی ژمارەکان
+        try {
+          const imgData = ctx.getImageData(0, 0, w, h);
+          const d = imgData.data;
+          for (let i = 0; i < d.length; i += 4) {
+            const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+            const c = (gray - 128) * 1.45 + 128;
+            const v = c < 0 ? 0 : (c > 255 ? 255 : c);
+            d[i] = v;
+            d[i + 1] = v;
+            d[i + 2] = v;
+          }
+          ctx.putImageData(imgData, 0, 0);
+        } catch (_) {}
+
+        resolve(canvas);
+      };
+      img.onerror = reject;
+      img.src = objUrl;
+    });
+  }
+
+  let _tesseractWorker = null;
+
+  async function getOcrWorker(onProgress) {
+    if (_tesseractWorker) return _tesseractWorker;
+    if (typeof Tesseract === 'undefined') {
+      throw new Error('سیستەمی سکانی OCR بەردەست نییە؛ تکایە لاپەڕەکە نوێ (Refresh) بکەرەوە');
+    }
+
+    const logHandler = m => {
+      if (onProgress && m && m.status) {
+        const pct = Math.round((m.progress || 0) * 100);
+        if (m.status.includes('recogniz')) {
+          onProgress(`شیکردنەوەی خشتە و ژمارەکان... ${pct}%`);
+        } else if (m.status.includes('load') || m.status.includes('init')) {
+          onProgress(`ئامادەکردنی مۆدێلی سکان... ${pct}%`);
+        } else {
+          onProgress(m.status);
+        }
+      }
+    };
+
+    try {
+      _tesseractWorker = await Tesseract.createWorker('eng', 1, {
+        workerPath: 'tesseract-worker.min.js',
+        logger: logHandler
+      });
+    } catch (err) {
+      console.warn('Worker local load fallback:', err);
+      _tesseractWorker = await Tesseract.createWorker('eng', 1, {
+        logger: logHandler
+      });
+    }
+
+    return _tesseractWorker;
+  }
+
+  // دەرهێنانی ژمارەکانی ستوونی «کۆد» (کە دەکەوێتە نێوان «ڕیز» و «پسوولە»)
+  function extractManifestCodes(ocrResult) {
+    if (!ocrResult) return [];
+    const lines = ocrResult.lines || [];
+    const fullText = ocrResult.text || '';
+
+    const candidates = [];
+    const textLines = fullText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+    let expectedSeq = 1;
+
+    for (const line of textLines) {
+      const latin = UI.toLatinDigits(line);
+      // فلتەرکردنی هێڵە ناپێویستەکان
+      if (/(ڕیز|پسوولە|لایەنی\s*حساب|مجموع|کۆی\s*گشتی|total|invoice|account)/i.test(latin) && latin.length > 35) {
+        continue;
       }
 
-      // ناوی لایەنی حساب
-      const name = textTokens.join(' ').replace(/[|_\-]+/g, ' ').trim();
+      // دەرهێنانی هەموو ژمارەکانی ناو هێڵەکە
+      const tokens = (latin.match(/\b\d+\b/g) || []);
+      if (!tokens.length) continue;
 
-      if (code || name) {
-        rows.push({
-          seq: seq || String(rows.length + 1),
-          code: code || '',
-          name: name || ''
+      // ١. فلتەرکردنی ژمارەی پسوولە (پسوولە هەمیشە ٦ ڕەقەمە، وەک 104052)
+      const nonInvoices = tokens.filter(t => t.length !== 6 && t.length <= 5 && parseInt(t, 10) > 0);
+      if (!nonInvoices.length) continue;
+
+      let rowNum = null;
+      let codeNum = null;
+
+      if (nonInvoices.length === 1) {
+        codeNum = nonInvoices[0];
+      } else if (nonInvoices.length === 2) {
+        const n1 = nonInvoices[0];
+        const n2 = nonInvoices[1];
+        const p1 = parseInt(n1, 10);
+        const p2 = parseInt(n2, 10);
+
+        // ئەگەر یەکێکیان ژمارەی ڕیز بێت (وەک 1, 2, 3...) و ئەویتریان کۆدی ماڕکێت (وەک 7815, 1849...)
+        if (p1 === expectedSeq || (p1 > 0 && p1 <= 150 && n1.length <= 2 && n2.length >= 2)) {
+          rowNum = String(p1);
+          codeNum = n2;
+        } else if (p2 === expectedSeq || (p2 > 0 && p2 <= 150 && n2.length <= 2 && n1.length >= 2)) {
+          rowNum = String(p2);
+          codeNum = n1;
+        } else {
+          // جیاکردنەوە بەپێی درێژی: کۆد لە نێوان ٣ بۆ ٥ ڕەقەمە
+          if (n1.length >= 3 && n1.length <= 5) codeNum = n1;
+          else if (n2.length >= 3 && n2.length <= 5) codeNum = n2;
+          else codeNum = n1;
+        }
+      } else {
+        // ئەگەر زیاد لە ٢ ژمارە مابوونەوە
+        const pFirst = parseInt(nonInvoices[0], 10);
+        let startIdx = 0;
+        if (pFirst === expectedSeq || (pFirst > 0 && pFirst <= 150 && nonInvoices[0].length <= 2)) {
+          rowNum = String(pFirst);
+          startIdx = 1;
+        }
+        const foundCode = nonInvoices.slice(startIdx).find(n => n.length >= 3 && n.length <= 5) || nonInvoices[startIdx];
+        codeNum = foundCode;
+      }
+
+      if (codeNum && codeNum.length !== 6 && codeNum.length <= 5) {
+        const seq = rowNum || String(candidates.length + 1);
+        if (rowNum) expectedSeq = parseInt(rowNum, 10) + 1;
+        else expectedSeq++;
+
+        candidates.push({
+          seq: seq,
+          code: codeNum.trim()
         });
       }
     }
 
-    return rows;
-  }
-
-  // هێنان و دۆزینەوەی ماڕکێت لە سەب بەیس لە ڕێگەی کۆد یان ناوی لایەنی حساب
-  async function resolveMarketFromScannedRow(row) {
-    if (!row) return null;
-    const cleanCode = UI.toLatinDigits(row.code || '').replace(/\D/g, '').trim();
-    const cleanName = (row.name || '').trim();
-
-    let target = null;
-
-    // هەنگاوی ١: گەڕان بەپێی کۆدی ماڕکێت (کۆڵۆمی سەرەکی و گرینگ)
-    if (cleanCode) {
-      target = state.localMarkets.get(cleanCode) ||
-               state.searchResults.find(m => String(m.account_code).trim() === cleanCode);
-
-      if (!target && typeof API !== 'undefined' && API.Markets && API.Markets.search) {
-        try {
-          const res = await API.Markets.search(cleanCode);
-          target = (res || []).find(m => String(m.account_code).trim() === cleanCode);
-          if (target) state.localMarkets.set(cleanCode, target);
-        } catch (_) {}
+    // سڕینەوەی دووبارەبوونەوەکان بە هێشتنەوەی ڕیزبەندی
+    const seenCodes = new Set();
+    const cleanList = [];
+    for (const c of candidates) {
+      if (!seenCodes.has(c.code)) {
+        seenCodes.add(c.code);
+        cleanList.push(c);
       }
     }
 
-    // هەنگاوی ٢: دڵنیابوونەوە یان بەکارهێنانی ناوی لایەنی حساب ئەگەر بە کۆد نەدۆزرایەوە
-    if (!target && cleanName && cleanName.length >= 2) {
-      const cleanNameLower = cleanName.toLowerCase();
-      // پشکنین لە ماڕکێتە لۆکاڵییەکان
-      for (const m of state.localMarkets.values()) {
-        const accName = String(m.account_name || '').toLowerCase();
-        if (accName && (accName.includes(cleanNameLower) || cleanNameLower.includes(accName))) {
-          target = m;
-          break;
+    return cleanList;
+  }
+
+  // پشکنین و هێنانی زانیاری ماڕکێتەکان لە سەپابەیس بەپێی کۆدەکان
+  async function lookupMarketsInDatabase(rawItems) {
+    if (!Array.isArray(rawItems) || !rawItems.length) return [];
+
+    const distinctCodes = [];
+    rawItems.forEach(r => {
+      const c = UI.toLatinDigits(r.code || '').replace(/\D/g, '').trim();
+      if (c && c.length !== 6 && c.length <= 5 && !distinctCodes.includes(c)) {
+        distinctCodes.push(c);
+      }
+    });
+
+    const dbMap = new Map();
+
+    // پشکنین لە کشی ناوخۆیی
+    distinctCodes.forEach(c => {
+      const m = state.localMarkets.get(c) || (state.searchResults || []).find(x => String(x.account_code).trim() === c);
+      if (m) dbMap.set(c, m);
+    });
+
+    // هێنانی دەستەجەمعی لە داتابەیسی سەپابەیس بەپێی account_code
+    const missing = distinctCodes.filter(c => !dbMap.has(c));
+    if (missing.length > 0) {
+      try {
+        const url = `${CONFIG.RECORDS_URL}/${CONFIG.MARKETS_TABLE}?account_code=in.(${encodeURIComponent(missing.join(','))})&select=*`;
+        const res = await fetch(url, {
+          headers: {
+            'apikey': CONFIG.RECORDS_KEY,
+            'Authorization': `Bearer ${CONFIG.RECORDS_KEY}`
+          }
+        });
+        if (res.ok) {
+          const list = await res.json();
+          (list || []).forEach(m => {
+            const code = String(m.account_code || '').trim();
+            if (code) {
+              dbMap.set(code, m);
+              state.localMarkets.set(code, m);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Batch fetch error:', e);
+      }
+
+      // گەڕانی تاکی لە API بۆ ئەو کۆدانەی هێشتا نەدۆزراونەتەوە
+      for (const c of missing) {
+        if (!dbMap.has(c) && typeof API !== 'undefined' && API.Markets && API.Markets.search) {
+          try {
+            const list = await API.Markets.search(c);
+            const m = (list || []).find(x => String(x.account_code).trim() === c);
+            if (m) {
+              dbMap.set(c, m);
+              state.localMarkets.set(c, m);
+            }
+          } catch (_) {}
         }
       }
-
-      // ئەگەر نەبوو، گەڕان لە سەب بەیس لە ڕێگەی ناوی لایەنی حساب
-      if (!target && typeof API !== 'undefined' && API.Markets && API.Markets.search) {
-        try {
-          const res = await API.Markets.search(cleanName);
-          if (Array.isArray(res) && res.length > 0) {
-            target = res[0];
-            if (target && target.account_code) {
-              state.localMarkets.set(String(target.account_code).trim(), target);
-            }
-          }
-        } catch (_) {}
-      }
     }
 
-    return target;
+    return rawItems.map((item, idx) => {
+      const cleanCode = UI.toLatinDigits(item.code || '').replace(/\D/g, '').trim();
+      const m = dbMap.get(cleanCode);
+      const hasCoords = m && m.latitude !== null && m.latitude !== undefined &&
+                        m.longitude !== null && m.longitude !== undefined &&
+                        !isNaN(Number(m.latitude)) && !isNaN(Number(m.longitude));
+
+      return {
+        seq: String(item.seq || idx + 1),
+        account_code: cleanCode,
+        account_name: (m && m.account_name) ? m.account_name : 'کۆدی نەناسراو',
+        neighborhood: (m && (m.neighborhood || m.zone)) ? (m.neighborhood || m.zone) : '',
+        phone: (m && m.phone) ? m.phone : '',
+        latitude: hasCoords ? Number(m.latitude) : null,
+        longitude: hasCoords ? Number(m.longitude) : null,
+        hasLocation: !!hasCoords,
+        inDb: !!m
+      };
+    });
   }
 
-  // زیادکردنی ماڕکێتەکان بۆ ناو گرووپ بەپێی خشتەی سکانکراو
-  async function addMarketsFromScannedRows(rows) {
-    if (!Array.isArray(rows) || !rows.length) return 0;
-    let addedCount = 0;
-
-    for (const row of rows) {
-      const target = await resolveMarketFromScannedRow(row);
-      if (!target) continue;
-
-      const code = String(target.account_code || '').trim();
-      const alreadyInGroup = state.activeGroup.some(m => String(m.account_code).trim() === code);
-      if (!alreadyInGroup) {
-        state.activeGroup.push(target);
-        addedCount++;
+  function appendMarketsToActiveGroup(items) {
+    let added = 0;
+    items.forEach(it => {
+      const code = String(it.account_code || '').trim();
+      if (!code) return;
+      const idx = state.activeGroup.findIndex(x => String(x.account_code).trim() === code);
+      if (idx !== -1) {
+        if (it.hasLocation && (!state.activeGroup[idx].latitude || !state.activeGroup[idx].longitude)) {
+          state.activeGroup[idx] = it;
+        }
+      } else {
+        state.activeGroup.push(it);
+        added++;
       }
-    }
-
+    });
     updateBottomBarBadge();
-    return addedCount;
-  }
-
-  async function addMarketsByCodes(codes) {
-    if (!Array.isArray(codes) || !codes.length) return 0;
-    const rows = codes.map(c => ({ code: String(c), name: '' }));
-    return await addMarketsFromScannedRows(rows);
+    return added;
   }
 
   /* =========================================================
-   *  مۆدالی کامێرا و دروستکردنی فایلی ماپ (KMZ)
+   *  مۆدالی کامێرا بە تەنها دوو ئۆپشن: گرتنی وێنە و هێنانی وێنە لە ئامێر
    * ========================================================= */
 
   function openCameraModal() {
@@ -1623,45 +1749,41 @@ const MarketsView = (() => {
     modalBody.className = 'mkt-cam-modal-body';
 
     modalBody.innerHTML = `
-      <div class="mkt-cam-intro">
-        <p class="muted" style="margin-top:0">
-          وێنەی کاعەز و پسوولەکان بگرە یان هەڵبژێرە، کۆدەکان وەردەگیرێن و دەتوانیت ماڕکێتی تر بە کۆد زیاد بکەیت، پاشان وەک فایلی <b>KMZ</b> ڕاستەوخۆ دەینێرێت بۆ بەرنامەی ماپ تا هەموو شوێنەکان بەدیار بکەون.
+      <!-- هێدەر و ڕێنمایی سادە -->
+      <div style="background:rgba(59,130,246,0.06); padding:10px 14px; border-radius:10px; border:1px solid var(--border); margin-bottom:12px;">
+        <strong style="font-size:0.92rem; color:var(--text); display:block; margin-bottom:4px;">
+          📸 سکانکردنی کاغەزی مانیفێست (کۆد و لۆکەیشن)
+        </strong>
+        <p class="muted" style="margin:0; font-size:0.8rem; line-height:1.4;">
+          وێنەی کاغەزەکە بگرە یان لە ئامێرەکەت هەڵیبژێرە؛ ژمارەکانی ستوونی «کۆد» (نێوان ڕیز و پسوولە) دەردەهێنرێن و ناو و لۆکەیشنەکانیان ڕاستەوخۆ لە داتابەیس دەهێنرێن بۆ هەناردەکردن بۆ Maps.me.
         </p>
       </div>
 
-      <!-- دووگمەکانی وێنەگرتن و سکان -->
-      <div class="mkt-cam-actions-box">
-        <input type="file" id="mkt-cam-file-input" accept="image/*" capture="environment" style="display:none">
-        <input type="file" id="mkt-gallery-file-input" accept="image/*" multiple style="display:none">
+      <!-- تەنها دوو ئۆپشن بەپێی داواکاری: گرتنی وێنە و هێنانی وێنە لە ئامێر -->
+      <input type="file" id="mkt-cam-file-input" accept="image/*" capture="environment" style="display:none">
+      <input type="file" id="mkt-gal-file-input" accept="image/*" style="display:none">
 
-        <div class="mkt-cam-btns-row">
-          <button type="button" class="btn btn-primary" id="mkt-cam-take-photo-btn">
-            <span>${UI.icon('camera', 20)}</span>
-            <span>گرتنی وێنە (کامێرا)</span>
-          </button>
-          <button type="button" class="btn btn-ghost" id="mkt-cam-pick-gallery-btn">
-            <span>🖼️ هەڵبژاردن لە مۆبایل</span>
-          </button>
-        </div>
-
-        <div class="mkt-cam-input-manual-row">
-          <input type="text" id="mkt-manual-code-input" inputmode="numeric" placeholder="یان کۆدی ماڕکێت بنووسە بۆ زیادکردن: بۆ نموونە 101 102 105" autocomplete="off">
-          <button type="button" class="btn btn-primary" id="mkt-add-manual-code-btn">＋ زیادکردن</button>
-        </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+        <button type="button" class="btn btn-primary" id="mkt-cam-btn-take" style="padding:12px 6px; font-size:0.9rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px;">
+          <span style="font-size:1.2rem;">📷</span> <span>گرتنی وێنە (کامێرا)</span>
+        </button>
+        <button type="button" class="btn btn-ghost" id="mkt-cam-btn-gallery" style="padding:12px 6px; font-size:0.9rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; border:1px solid var(--border);">
+          <span style="font-size:1.2rem;">🖼️</span> <span>هێنانی وێنە لە ئامێر</span>
+        </button>
       </div>
 
-      <!-- شوێنی نیشاندانی وێنە گیراوەکان -->
-      <div class="mkt-thumbs-preview" id="mkt-thumbs-preview" style="display:none"></div>
+      <!-- شوێنی پێشبینینی وێنە لەگەڵ دوگمەی سووڕاندن و سڕینەوە -->
+      <div class="mkt-thumbs-preview" id="mkt-thumbs-preview" style="display:none; margin-bottom:14px;"></div>
 
-      <!-- گرووپی ماڕکێتە هەڵبژێردراوەکان -->
+      <!-- لیستی مارکێتە دۆزراوەکان بۆ دروستکردنی فایلی ماپ -->
       <div class="mkt-scanned-group-wrap">
         <div class="mkt-group-head-row">
-          <h4>📍 ماڕکێتە هەڵبژێردراوەکان بۆ فایلی ماپ (<span id="mkt-group-count">${state.activeGroup.length}</span> ماڕکێت)</h4>
-          ${state.activeGroup.length ? `<button type="button" class="btn btn-xs btn-ghost text-danger" id="mkt-clear-group-inner">خاوێنکردنەوە</button>` : ''}
+          <h4>📍 مارکێتە دۆزراوەکان (<span id="mkt-group-count">${state.activeGroup.length}</span>)</h4>
+          ${state.activeGroup.length ? `<button type="button" class="btn btn-xs btn-ghost text-danger" id="mkt-clear-group-btn">خاوێنکردنەوە</button>` : ''}
         </div>
 
         <div class="mkt-group-items-list" id="mkt-group-items-list">
-          ${renderGroupItemsHtml()}
+          ${renderActiveGroupHtml()}
         </div>
       </div>
     `;
@@ -1673,12 +1795,20 @@ const MarketsView = (() => {
       actions: [
         { label: 'داخستن', className: 'btn-ghost', onClick: () => close() },
         {
-          label: '🗺️ ناردن بۆ بەرنامەی ماپ (KMZ)',
+          label: '🗺️ کردنەوە لە Maps.me (KMZ)',
           className: 'btn-success',
           onClick: async () => {
             if (!state.activeGroup.length) {
-              UI.toast('تکایە سەرەتا چەند ماڕکێتێک بە کامێرا یان بە کۆد زیاد بکە', 'warning');
+              UI.toast('تکایە سەرەتا بە وێنەگرتن یان گەلەری مارکێتەکان زیاد بکە', 'warning');
               return;
+            }
+            const missingLocs = state.activeGroup.filter(m => !m.latitude || !m.longitude);
+            if (missingLocs.length > 0 && missingLocs.length === state.activeGroup.length) {
+              UI.toast('هیچ کام لە مارکێتەکان لۆکەیشنی GPS یان نییە! تکایە لانی کەم یەک لۆکەیشن دیاری بکە.', 'danger', 4500);
+              return;
+            }
+            if (missingLocs.length > 0) {
+              UI.toast(`تێبینی: لە کۆی ${state.activeGroup.length} مارکێت، ${missingLocs.length} مارکێت بێ لۆکەیشنن و لەسەر ماپ دەرناکەون.`, 'warning', 4500);
             }
             await sendGroupToMapsMe(state.activeGroup);
             close();
@@ -1689,40 +1819,55 @@ const MarketsView = (() => {
     });
 
     const camInput = modalBody.querySelector('#mkt-cam-file-input');
-    const galInput = modalBody.querySelector('#mkt-gallery-file-input');
-    const photoBtn = modalBody.querySelector('#mkt-cam-take-photo-btn');
-    const galBtn = modalBody.querySelector('#mkt-cam-pick-gallery-btn');
+    const galInput = modalBody.querySelector('#mkt-gal-file-input');
+    const btnTake = modalBody.querySelector('#mkt-cam-btn-take');
+    const btnGallery = modalBody.querySelector('#mkt-cam-btn-gallery');
     const thumbsWrap = modalBody.querySelector('#mkt-thumbs-preview');
-    const manualInput = modalBody.querySelector('#mkt-manual-code-input');
-    const manualBtn = modalBody.querySelector('#mkt-add-manual-code-btn');
 
-    photoBtn?.addEventListener('click', () => camInput?.click());
-    galBtn?.addEventListener('click', () => galInput?.click());
+    btnTake?.addEventListener('click', () => camInput?.click());
+    btnGallery?.addEventListener('click', () => galInput?.click());
 
     const handleFiles = async (files) => {
       if (!files || !files.length) return;
       thumbsWrap.style.display = 'flex';
 
       for (const file of files) {
+        let currentFile = file;
         const imgBox = document.createElement('div');
         imgBox.className = 'mkt-thumb-box';
-        const url = URL.createObjectURL(file);
+        let currentUrl = URL.createObjectURL(currentFile);
+
         imgBox.innerHTML = `
-          <img src="${url}" alt="کاعەز">
-          <span class="mkt-thumb-status">خوێندنەوە...</span>
+          <img src="${currentUrl}" alt="کاعەز">
+          <button type="button" class="mkt-thumb-rot" title="ئەگەر وێنەکە لار بوو بیپێچەوە 90°">⟳ سووڕاندن</button>
           <button type="button" class="mkt-thumb-del" title="سڕینەوە">✕</button>
+          <span class="mkt-thumb-status">ئامادەکردنی وێنە...</span>
         `;
         thumbsWrap.appendChild(imgBox);
 
         imgBox.querySelector('.mkt-thumb-del')?.addEventListener('click', () => {
           imgBox.remove();
-          URL.revokeObjectURL(url);
+          URL.revokeObjectURL(currentUrl);
           if (!thumbsWrap.children.length) thumbsWrap.style.display = 'none';
         });
 
         const statusEl = imgBox.querySelector('.mkt-thumb-status');
-        await processCapturedImage(file, imgBox, statusEl);
-        refreshGroupList();
+        const rotBtn = imgBox.querySelector('.mkt-thumb-rot');
+
+        rotBtn?.addEventListener('click', async () => {
+          rotBtn.disabled = true;
+          statusEl.textContent = 'سووڕاندن...';
+          currentFile = await rotateImageFile(currentFile, 90);
+          URL.revokeObjectURL(currentUrl);
+          currentUrl = URL.createObjectURL(currentFile);
+          imgBox.querySelector('img').src = currentUrl;
+          await processImageLocally(currentFile, statusEl);
+          refreshGroupUi();
+          rotBtn.disabled = false;
+        });
+
+        await processImageLocally(currentFile, statusEl);
+        refreshGroupUi();
       }
     };
 
@@ -1735,146 +1880,135 @@ const MarketsView = (() => {
       galInput.value = '';
     });
 
-    async function processCapturedImage(file, imgBox, statusEl) {
-      statusEl.textContent = 'خوێندنەوەی کاغەز...';
-      const scannedRows = [];
-
-      // پشکنینی بارکۆد لە وێنەکەدا ئەگەر هەبێت
-      if ('BarcodeDetector' in window) {
-        try {
-          const detector = new window.BarcodeDetector({ formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8'] });
-          const bmp = await createImageBitmap(file);
-          const barcodes = await detector.detect(bmp);
-          barcodes.forEach(b => {
-            if (b.rawValue) scannedRows.push({ seq: '', code: b.rawValue.trim(), name: '' });
-          });
-        } catch (_) {}
-      }
-
-      // OCR خوێندنەوەی خشتەی مانیفێست (ڕیز، کۆد، لایەنی حساب)
+    async function processImageLocally(file, statusEl) {
+      statusEl.textContent = 'ئامادەکردنی وێنە...';
       try {
-        const Tesseract = await ensureTesseract();
-        if (Tesseract) {
-          statusEl.textContent = 'دەرهێنانی کۆد و لایەنی حساب...';
-          let res = null;
-          try {
-            res = await Tesseract.recognize(file, 'ara+eng');
-          } catch (_) {
-            res = await Tesseract.recognize(file, 'eng');
-          }
-          const text = res?.data?.text || '';
-          const rows = parsePaperManifestRows(text);
-          rows.forEach(r => scannedRows.push(r));
+        const canvas = await prepareImageForOcr(file, 1800);
+        statusEl.textContent = 'دەستپێکردنی سکان...';
+
+        const worker = await getOcrWorker(msg => {
+          statusEl.textContent = msg;
+        });
+
+        statusEl.textContent = 'خوێندنەوەی ژمارەکان...';
+        const result = await worker.recognize(canvas);
+        const extracted = extractManifestCodes(result.data);
+
+        if (!extracted.length) {
+          statusEl.textContent = 'هیچ کۆدێک نەدۆزرایەوە؛ دەتوانیت بیسوڕێنیت ⟳';
+          statusEl.style.color = '#ef4444';
+          return;
         }
-      } catch (e) {
-        console.warn('OCR error:', e);
-      }
 
-      // پاڵاوتنی ڕیزەکان (ئەوانەی کۆد یان ناوی لایەنی حسابیان تێدایە)
-      const validRows = scannedRows.filter(r => (r.code && r.code.trim()) || (r.name && r.name.trim().length >= 2));
+        statusEl.textContent = `پشکنینی ${extracted.length} کۆد لە داتابەیس...`;
+        const lookedUp = await lookupMarketsInDatabase(extracted);
+        const added = appendMarketsToActiveGroup(lookedUp);
 
-      if (!validRows.length) {
-        statusEl.textContent = 'کۆد یان ناوی ماڕکێت نەدۆزرایەوە';
-        statusEl.style.color = '#fbbf24';
-        return 0;
-      }
-
-      statusEl.textContent = 'پشکنین لە سەب بەیس بەپێی کۆد و ناو...';
-      const added = await addMarketsFromScannedRows(validRows);
-      if (added > 0) {
-        statusEl.textContent = `${added} ماڕکێت زیادکرا ✓`;
+        statusEl.textContent = `${added} مارکێت دۆزرایەوە ✓`;
         statusEl.style.color = '#10b981';
-      } else {
-        statusEl.textContent = 'ماڕکێتەکان پێشتر زیادکراون یان نەدۆزرانەوە';
-        statusEl.style.color = '#94a3b8';
+        UI.toast(`${extracted.length} کۆد لە وێنەکە خوێنرایەوە و لە داتابەیس پشکێنرا ✓`, 'success', 3500);
+      } catch (err) {
+        console.error('Local OCR error:', err);
+        statusEl.textContent = 'هەڵە لە سکان: ' + err.message;
+        statusEl.style.color = '#ef4444';
+        UI.toast('هەڵە لە سکانی وێنە: ' + err.message, 'danger', 4500);
       }
-      return added;
     }
 
-    const addManual = async () => {
-      const val = manualInput.value.trim();
-      if (!val) return;
-      const latin = UI.toLatinDigits(val);
-      const codes = latin.split(/[,،\s]+/).map(c => c.replace(/\D/g, '').trim()).filter(Boolean);
-      if (!codes.length) return;
-
-      manualBtn.disabled = true;
-      try {
-        const added = await addMarketsByCodes(codes);
-        if (added > 0) {
-          UI.toast(`${added} ماڕکێت زیادکرا بۆ گرووپەکە ✓`, 'success');
-        } else {
-          UI.toast(`هیچ ماڕکێتێکی نوێ نەدۆزرایەوە بۆ کۆدەکان: ${codes.join(', ')}`, 'warning');
-        }
-        manualInput.value = '';
-        refreshGroupList();
-      } finally {
-        manualBtn.disabled = false;
-      }
-    };
-
-    manualBtn?.addEventListener('click', addManual);
-    manualInput?.addEventListener('keydown', e => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        addManual();
-      }
-    });
-
-    modalBody.querySelector('#mkt-clear-group-inner')?.addEventListener('click', () => {
+    // خاوێنکردنەوەی هەموو گرووپەکە
+    modalBody.querySelector('#mkt-clear-group-btn')?.addEventListener('click', () => {
       state.activeGroup = [];
       updateBottomBarBadge();
-      refreshGroupList();
+      refreshGroupUi();
     });
 
-    function refreshGroupList() {
+    function refreshGroupUi() {
       const countEl = modalBody.querySelector('#mkt-group-count');
       const listEl = modalBody.querySelector('#mkt-group-items-list');
       if (countEl) countEl.textContent = state.activeGroup.length;
-      if (listEl) listEl.innerHTML = renderGroupItemsHtml();
-      bindGroupItemDeletes();
+      if (listEl) listEl.innerHTML = renderActiveGroupHtml();
+      bindGroupItemEvents();
       updateBottomBarBadge();
     }
 
-    function bindGroupItemDeletes() {
+    function bindGroupItemEvents() {
+      // سڕینەوەی ماڕکێت لە لیست
       modalBody.querySelectorAll('[data-drop-code]').forEach(btn => {
         btn.addEventListener('click', () => {
-          const code = btn.dataset.dropCode;
-          state.activeGroup = state.activeGroup.filter(x => String(x.account_code) !== String(code));
-          refreshGroupList();
+          const c = btn.dataset.dropCode;
+          state.activeGroup = state.activeGroup.filter(x => String(x.account_code) !== String(c));
+          refreshGroupUi();
+        });
+      });
+
+      // دیاریکردنی لۆکەیشن بۆ ئەوانەی لۆکەیشنیان نییە لەسەر نەخشە
+      modalBody.querySelectorAll('[data-fix-loc-code]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const c = btn.dataset.fixLocCode;
+          const target = state.activeGroup.find(x => String(x.account_code) === String(c));
+          if (!target) return;
+
+          openMapPickerModal({
+            initialLat: target.latitude,
+            initialLon: target.longitude,
+            onSelect: async (lat, lon) => {
+              target.latitude = Number(lat);
+              target.longitude = Number(lon);
+              target.hasLocation = true;
+              try {
+                await fetch(`${CONFIG.RECORDS_URL}/${CONFIG.MARKETS_TABLE}?account_code=eq.${encodeURIComponent(target.account_code)}`, {
+                  method: 'PATCH',
+                  headers: {
+                    'apikey': CONFIG.RECORDS_KEY,
+                    'Authorization': `Bearer ${CONFIG.RECORDS_KEY}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ latitude: target.latitude, longitude: target.longitude })
+                });
+                UI.toast(`لۆکەیشنی مارکێتی «${target.account_name}» نوێکرایەوە ✓`, 'success');
+              } catch (e) {
+                console.warn('Update location failed:', e);
+              }
+              refreshGroupUi();
+            }
+          });
         });
       });
     }
 
-    bindGroupItemDeletes();
+    bindGroupItemEvents();
   }
 
-  function renderGroupItemsHtml() {
+  function renderActiveGroupHtml() {
     if (!state.activeGroup.length) {
-      return `<div class="mkt-group-empty muted" style="padding:14px; text-align:center;">هێشتا هیچ ماڕکێتێک هەڵنەبژێردراوە. بە کامێرا وێنە بگرە یان کۆد بنووسە.</div>`;
+      return `<div class="mkt-group-empty muted" style="padding:18px; text-align:center;">هێشتا هیچ وێنەیەک سکان نەکراوە. دوگمەی کامێرا یان گەلەری دابگرە بۆ سکان.</div>`;
     }
 
     return state.activeGroup.map((m, idx) => {
       const hasCoords = m.latitude !== null && m.latitude !== undefined &&
                         m.longitude !== null && m.longitude !== undefined &&
                         !isNaN(Number(m.latitude)) && !isNaN(Number(m.longitude));
+      const code = UI.esc(m.account_code || '');
+      const name = UI.esc(m.account_name || 'مارکێت');
+      const zone = UI.esc(m.neighborhood || m.zone || '');
 
       return `
         <div class="mkt-group-card-item">
           <span class="mkt-g-index">#${idx + 1}</span>
           <div class="mkt-g-info">
             <div class="mkt-g-code-row">
-              <span class="mkt-g-code-chip">${UI.esc(m.account_code)}</span>
-              <strong>${UI.esc(m.account_name || 'ماڕکێت')}</strong>
+              <span class="mkt-g-code-chip">${code}</span>
+              <strong>${name}</strong>
             </div>
             <div class="mkt-g-sub">
-              <span>${m.neighborhood || m.zone ? '📍 ' + UI.esc(m.neighborhood || m.zone) : ''}</span>
+              ${zone ? `<span>📍 ${zone}</span>` : ''}
               ${hasCoords
-                ? `<span class="text-success" style="font-size:0.78rem">✓ لۆکەیشن هەیە</span>`
-                : `<span class="text-danger" style="font-size:0.78rem">⚠️ بێ لۆکەیشن</span>`}
+                ? `<span class="mkt-badge-has-loc">✓ لۆکەیشن هەیە (${Number(m.latitude).toFixed(4)}, ${Number(m.longitude).toFixed(4)})</span>`
+                : `<span class="mkt-badge-warn-loc">⚠️ ئەم کۆدە بێ لۆکەیشنە</span>
+                   <button type="button" class="btn btn-xs btn-ghost text-primary" data-fix-loc-code="${code}" style="padding:1px 6px; font-size:0.72rem;">📍 دیاریکردنی لۆکەیشن</button>`}
             </div>
           </div>
-          <button type="button" class="btn btn-ghost btn-xs text-danger" data-drop-code="${UI.esc(m.account_code)}" title="سڕینەوە لە گرووپ">✕</button>
+          <button type="button" class="btn btn-ghost btn-xs text-danger" data-drop-code="${code}" title="سڕینەوە">✕</button>
         </div>`;
     }).join('');
   }
@@ -1886,6 +2020,7 @@ const MarketsView = (() => {
   return {
     render,
     stop,
-    openAddEditModal
+    openAddEditModal,
+    openCameraModal
   };
 })();

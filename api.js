@@ -508,34 +508,121 @@ const API = (() => {
 
     async insertVehicle(row) {
       if (gwOn()) {
-        const r = await gw('lists.insertVehicle', { row });
-        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
-        return r;
+        try {
+          const r = await gw('lists.insertVehicle', { row });
+          if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+          return r;
+        } catch (err) {
+          // ئەگەر فەنکشنی دەروازە لە Supabase هێشتا نوێ نەکراوەتەوە، هەوڵی ڕاستەوخۆ دەدات
+          if (err && (err.code === 'UNKNOWN_OP' || err.status === 404)) {
+            console.warn('دەروازە lists.insertVehicle ی نییە، هەوڵی ڕاستەوخۆ دەدرێت:', err);
+            return this._directInsertVehicle(row);
+          }
+          throw err;
+        }
       }
-      const rows = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
-        `/${CONFIG.VEHICLES_TABLE}`, { method: 'POST', body: row, prefer: 'return=representation' });
-      if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
-      return rows && rows[0] ? rows[0] : null;
+      return this._directInsertVehicle(row);
+    },
+
+    async _directInsertVehicle(row) {
+      const CANDIDATE_COLS = ['vehicle_number', 'name', 'plate_number', 'vehicle', 'number', 'plate'];
+      let val = null;
+      for (const k of CANDIDATE_COLS) {
+        if (row && row[k] !== undefined && row[k] !== null && String(row[k]).trim()) {
+          val = row[k];
+          break;
+        }
+      }
+      try {
+        const rows = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
+          `/${CONFIG.VEHICLES_TABLE}`, { method: 'POST', body: row, prefer: 'return=representation' });
+        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+        return rows && rows[0] ? rows[0] : null;
+      } catch (err) {
+        const msg = String(err && err.message ? err.message : '');
+        if (((err && err.code === 'PGRST204') || msg.includes('column') || msg.includes('PGRST204')) && val != null) {
+          for (const col of CANDIDATE_COLS) {
+            if (row && row[col] !== undefined) continue;
+            try {
+              const rows = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
+                `/${CONFIG.VEHICLES_TABLE}`, { method: 'POST', body: { [col]: val }, prefer: 'return=representation' });
+              if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+              return rows && rows[0] ? rows[0] : null;
+            } catch (_) {}
+          }
+        }
+        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+        throw err;
+      }
     },
 
     async updateVehicle(id, patch) {
       if (gwOn()) {
-        const r = await gw('lists.updateVehicle', { id, patch });
-        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
-        return r;
+        try {
+          const r = await gw('lists.updateVehicle', { id, patch });
+          if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+          return r;
+        } catch (err) {
+          if (err && (err.code === 'UNKNOWN_OP' || err.status === 404)) {
+            console.warn('دەروازە lists.updateVehicle ی نییە، هەوڵی ڕاستەوخۆ دەدرێت:', err);
+            return this._directUpdateVehicle(id, patch);
+          }
+          throw err;
+        }
       }
-      const rows = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
-        `/${CONFIG.VEHICLES_TABLE}?id=eq.${encodeURIComponent(id)}`,
-        { method: 'PATCH', body: patch, prefer: 'return=representation' });
-      if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
-      return rows && rows[0] ? rows[0] : null;
+      return this._directUpdateVehicle(id, patch);
+    },
+
+    async _directUpdateVehicle(id, patch) {
+      const CANDIDATE_COLS = ['vehicle_number', 'name', 'plate_number', 'vehicle', 'number', 'plate'];
+      let val = null;
+      for (const k of CANDIDATE_COLS) {
+        if (patch && patch[k] !== undefined && patch[k] !== null && String(patch[k]).trim()) {
+          val = patch[k];
+          break;
+        }
+      }
+      try {
+        const rows = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
+          `/${CONFIG.VEHICLES_TABLE}?id=eq.${encodeURIComponent(id)}`,
+          { method: 'PATCH', body: patch, prefer: 'return=representation' });
+        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+        return rows && rows[0] ? rows[0] : null;
+      } catch (err) {
+        const msg = String(err && err.message ? err.message : '');
+        if (((err && err.code === 'PGRST204') || msg.includes('column') || msg.includes('PGRST204')) && val != null) {
+          for (const col of CANDIDATE_COLS) {
+            if (patch && patch[col] !== undefined) continue;
+            try {
+              const rows = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
+                `/${CONFIG.VEHICLES_TABLE}?id=eq.${encodeURIComponent(id)}`,
+                { method: 'PATCH', body: { [col]: val }, prefer: 'return=representation' });
+              if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+              return rows && rows[0] ? rows[0] : null;
+            } catch (_) {}
+          }
+        }
+        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+        throw err;
+      }
     },
 
     async deleteVehicle(id) {
       if (gwOn()) {
-        const r = await gw('lists.deleteVehicle', { id });
-        if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
-        return r;
+        try {
+          const r = await gw('lists.deleteVehicle', { id });
+          if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+          return r;
+        } catch (err) {
+          if (err && (err.code === 'UNKNOWN_OP' || err.status === 404)) {
+            console.warn('دەروازە lists.deleteVehicle ی نییە، هەوڵی ڕاستەوخۆ دەدرێت:', err);
+            const res = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
+              `/${CONFIG.VEHICLES_TABLE}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+            if (typeof Store !== 'undefined' && Store.invalidateLists) Store.invalidateLists();
+            return res;
+          }
+          throw err;
+        }
       }
       const res = await request(CONFIG.LISTS_URL, CONFIG.LISTS_KEY,
         `/${CONFIG.VEHICLES_TABLE}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
