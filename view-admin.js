@@ -770,7 +770,7 @@ const AdminView = (() => {
           <div class="field"><label>کێشی بار (کگم) *</label><input id="m-rec-wt" type="text" inputmode="numeric" value="${rec && rec.cargo_weight ? (UI.hasOperator(rec.cargo_weight) ? rec.cargo_weight : UI.fmtNum(rec.cargo_weight)) : ''}" placeholder="0"></div>
           <div class="field"><label>ژمارەی پارچەکان *</label><input id="m-rec-pcs" type="text" inputmode="numeric" value="${rec && rec.pieces_count ? (UI.hasOperator(rec.pieces_count) ? rec.pieces_count : UI.fmtNum(rec.pieces_count)) : ''}" placeholder="0"></div>
         </div>
-        <div class="field"><label>ژمارەی وەسڵ *</label><input id="m-rec-rcp" type="text" inputmode="numeric" value="${rec && rec.receipt_number ? (UI.hasOperator(rec.receipt_number) ? rec.receipt_number : UI.fmtNum(rec.receipt_number)) : ''}" placeholder="0"></div>
+        <div class="field"><label>ژمارەی وەسڵ * <span style="font-weight:normal;font-size:12px;color:var(--text-muted)"></span></label><input id="m-rec-rcp" type="text" inputmode="numeric" placeholder="1-99" maxlength="10" value="${rec && rec.receipt_number ? (UI.hasOperator(rec.receipt_number) ? rec.receipt_number : UI.fmtNum(rec.receipt_number)) : ''}"></div>
         <div class="field"><label>💰 پارەی هێنراوە (د.ع)</label><input id="m-rec-mny" type="text" inputmode="numeric" value="${rec && Number(rec.collected_money || 0) > 0 ? UI.fmtNum(rec.collected_money) : ''}" placeholder="بەتاڵ = تۆمار نەکراوە"></div>
 
         <div class="date-range-compact" style="margin-top:10px">
@@ -810,6 +810,16 @@ const AdminView = (() => {
     UI.wireThousands($('#m-rec-pcs', body), { allowOperators: true });
     UI.wireThousands($('#m-rec-rcp', body), { allowOperators: true });
     UI.wireThousands($('#m-rec-mny', body), { allowOperators: true });
+
+    $('#m-rec-rcp', body)?.addEventListener('input', (e) => {
+      const raw = e.target.value;
+      if (!UI.hasOperator(raw)) {
+        const latin = UI.toLatinDigits(raw).replace(/[^0-9]/g, '');
+        if (latin.length > 2) {
+          e.target.value = latin.slice(0, 2);
+        }
+      }
+    });
 
     const { close } = UI.openModal({
       title: isEdit ? '✏️ دەستکاریکردنی تۆماری گەیاندن' : '➕ زیادکردنی باری نوێ',
@@ -878,6 +888,11 @@ const AdminView = (() => {
             if (data.collected_money > 99999999) {
               $('#m-rec-mny', body)?.classList.add('invalid');
               UI.toast('بڕی پارەی هێنراوە ناتوانێت لە ٩٩،٩٩٩،٩٩٩ زیاتر بێت', 'warning');
+              return;
+            }
+            if (data.receipt_number < 1 || data.receipt_number > 99) {
+              $('#m-rec-rcp', body)?.classList.add('invalid');
+              UI.toast('ژمارەی وەسڵ نابێت لە ٢ ژمارە زیاتر بێت (دەبێت لە نێوان ١ بۆ ٩٩ بێت)', 'warning', 5000);
               return;
             }
 

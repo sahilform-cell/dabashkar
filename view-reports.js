@@ -99,11 +99,11 @@ const ReportsView = (() => {
         return false;
       });
     }
-    if (u.profession === CONFIG.PROFESSION_DRIVER) {
-      return rows.filter(r => UI.recMatchesUser(r, 'driver', u));
+    if (u.profession === CONFIG.PROFESSION_DRIVER || u.profession === CONFIG.PROFESSION_ASSISTANT) {
+      return rows.filter(r => UI.recMatchesUser(r, 'driver', u) || UI.recMatchesUser(r, 'distributor', u));
     }
     if (u.profession === CONFIG.PROFESSION_DISTRIBUTOR) {
-      return rows.filter(r => UI.recMatchesUser(r, 'distributor', u));
+      return rows.filter(r => UI.recMatchesUser(r, 'distributor', u) || UI.recMatchesUser(r, 'driver', u));
     }
     if (u.profession === CONFIG.PROFESSION_DELEGATE) {
       return rows.filter(r => UI.recMatchesUser(r, 'delegate', u));

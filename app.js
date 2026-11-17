@@ -316,6 +316,7 @@ const App = (() => {
         $('#topbar-notif-btn').addEventListener('click', () => UI.openNotificationsPanel());
         startNotifPolling();
       }
+      window.dispatchEvent(new CustomEvent('topbar-rendered'));
     }
   }
 

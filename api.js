@@ -215,8 +215,8 @@ const API = (() => {
     const all = (users || []).filter(u => normName(u.username) === target);
     if (!all.length) return null;
     if (all.length === 1) return all[0];
-    const byProf = all.filter(u => u.profession === profession);
-    return byProf.length === 1 ? byProf[0] : null;
+    const byProf = all.filter(u => u.profession === profession || (profession === CONFIG.PROFESSION_DRIVER && u.profession === CONFIG.PROFESSION_ASSISTANT));
+    return byProf.length === 1 ? byProf[0] : all[0];
   }
 
   /**
@@ -224,7 +224,7 @@ const API = (() => {
    * بەتاڵ دەگەڕێتەوە ئەگەر هیچ بەشێک نەدۆزرێتەوە.
    */
   function resolveIdsForField(users, value, profession) {
-    const parts = String(value || '').split(/\s+و\s+/).map(p => p.trim()).filter(Boolean);
+    const parts = String(value || '').split(/(?:\s+و\s+|\s*[,،&+/]\s*)/).map(p => p.trim()).filter(Boolean);
     if (!parts.length) return '';
     const ids = parts
       .map(p => { const u = resolveNameToUser(users, p, profession); return u ? String(u.id) : ''; })
