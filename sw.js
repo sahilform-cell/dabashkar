@@ -3,7 +3,7 @@
  *  فایلەکانی سیستەم کاش دەکات؛ داتای Supabase هەمیشە ڕاستەوخۆ لە ڕایەڵەوە.
  * ========================================================= */
 
-const CACHE_NAME = 'dlv-cache-v1.9.39';
+const CACHE_NAME = 'dlv-cache-v1.9.41';
 const SHELL = [
   './',
   './index.html',

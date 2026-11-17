@@ -800,7 +800,6 @@ const DriverView = (() => {
   /* ---------------- داتای تۆمارنەکراوی ڕۆژی پێشوو (ماوە) ---------------- */
 
   let pendingPastRecords = [];
-  let pendingCheckedOnce = false;
   let topbarPendingActive = false;
 
   function getPreviousWorkDate() {
@@ -810,6 +809,37 @@ const DriverView = (() => {
       return UI.daysAgoStr(2);
     }
     return UI.daysAgoStr(1);
+  }
+
+  function isPendingDismissed() {
+    const u = App.getUser();
+    if (!u) return false;
+    const prevDate = getPreviousWorkDate();
+    try {
+      return sessionStorage.getItem(`dlv_pending_dismissed_${u.id}_${prevDate}`) === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function markPendingDismissed() {
+    const u = App.getUser();
+    if (!u) return;
+    const prevDate = getPreviousWorkDate();
+    topbarPendingActive = true;
+    try {
+      sessionStorage.setItem(`dlv_pending_dismissed_${u.id}_${prevDate}`, '1');
+    } catch (_) {}
+  }
+
+  function clearPendingDismissed() {
+    const u = App.getUser();
+    if (!u) return;
+    const prevDate = getPreviousWorkDate();
+    topbarPendingActive = false;
+    try {
+      sessionStorage.removeItem(`dlv_pending_dismissed_${u.id}_${prevDate}`);
+    } catch (_) {}
   }
 
   function isRecordIncomplete(r) {
@@ -839,7 +869,7 @@ const DriverView = (() => {
       btn.id = 'btn-pending-prev';
       btn.className = 'tb-pending-btn';
       btn.innerHTML = '⚠️ ماوە';
-      btn.title = 'داتای تۆمار نەکراوت ماوە';
+      btn.title = 'داتای تۆمار نەکراوت ماوە — بۆ تەواوکردن دایبگرە';
       const bellWrap = dateEl.querySelector('.notif-bell-wrap');
       if (bellWrap) {
         dateEl.insertBefore(btn, bellWrap);
@@ -870,6 +900,8 @@ const DriverView = (() => {
 
   function openPendingNoticeModal(rec) {
     if (!rec) return;
+    // ئەگەر پێشتر کراوەتەوە لە شاشەدا، دووبارەی مەکەرەوە
+    if (document.querySelector('.modal-pending-notice')) return;
 
     const missingItems = [];
     if (!rec.in_zone_time) missingItems.push('کاتی ناو زۆن');
@@ -883,6 +915,7 @@ const DriverView = (() => {
     const dayKu = rec.record_date === UI.daysAgoStr(2) ? 'پێنجشەممە' : 'دوێنێ';
 
     const body = document.createElement('div');
+    body.className = 'modal-pending-notice';
     body.innerHTML = `
       <div style="text-align:center;padding:10px 0 16px;">
         <div style="font-size:2.8rem;line-height:1;margin-bottom:8px;">⚠️</div>
@@ -913,14 +946,23 @@ const DriverView = (() => {
       </div>
     `;
 
+    let userChoseEdit = false;
     const { close } = UI.openModal({
       title: '⚠️ داتای تۆمار نەکراوت ماوە',
       body,
+      onClose: () => {
+        if (!userChoseEdit) {
+          markPendingDismissed();
+          showTopbarPendingBtn();
+        }
+      },
       actions: [
         {
           label: 'دواتر',
           className: 'btn-ghost',
           onClick: () => {
+            userChoseEdit = false;
+            markPendingDismissed();
             close();
             showTopbarPendingBtn();
           }
@@ -929,6 +971,7 @@ const DriverView = (() => {
           label: 'دەستکاری داتا',
           className: 'btn-primary',
           onClick: () => {
+            userChoseEdit = true;
             close();
             openEditDataModal(rec, {
               pendingPastEdit: true,
@@ -956,13 +999,15 @@ const DriverView = (() => {
       pendingPastRecords = userPrevRows.filter(r => isRecordIncomplete(r));
 
       if (pendingPastRecords.length > 0) {
-        if (!pendingCheckedOnce || forceShowModal) {
-          pendingCheckedOnce = true;
+        const dismissed = isPendingDismissed();
+        if (forceShowModal || !dismissed) {
           openPendingNoticeModal(pendingPastRecords[0]);
-        } else if (topbarPendingActive) {
+        } else {
+          // یوسەرەکە لایدابوو — نایەتەوە بەرچاوی تا خۆی دوگمەی ماوە دانەگرێت
           showTopbarPendingBtn();
         }
       } else {
+        clearPendingDismissed();
         hideTopbarPendingBtn();
       }
     } catch (e) {
@@ -971,8 +1016,28 @@ const DriverView = (() => {
   }
 
   window.addEventListener('topbar-rendered', () => {
-    if (topbarPendingActive && pendingPastRecords.length > 0) {
+    if (pendingPastRecords.length > 0 && (topbarPendingActive || isPendingDismissed())) {
       showTopbarPendingBtn();
+    }
+  });
+
+  // پشکنینی کاتی کردنەوەی دووبارەی ئەپ پاش شاراوەیی/داخستن لە مۆبایل
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      try {
+        sessionStorage.setItem('dlv_last_hidden_time', String(Date.now()));
+      } catch (_) {}
+    } else if (document.visibilityState === 'visible') {
+      try {
+        const lastHidden = Number(sessionStorage.getItem('dlv_last_hidden_time') || 0);
+        // ئەگەر ئەپەکە داخراوە/شاراوەتەوە زیاتر لە ٥ خولەک پێش ئێستا، وەک کردنەوەی نوێ هەژمار دەکرێت
+        if (lastHidden && (Date.now() - lastHidden > 5 * 60 * 1000)) {
+          clearPendingDismissed();
+          checkPendingPastRecords({ forceShowModal: true });
+        } else if (pendingPastRecords.length > 0 && isPendingDismissed()) {
+          showTopbarPendingBtn();
+        }
+      } catch (_) {}
     }
   });
 
@@ -1304,7 +1369,29 @@ const DriverView = (() => {
     });
 
     $('#btn-share-tg', body)?.addEventListener('click', () => {
-      window.open(`https://t.me/share/url?url=&text=${encodeURIComponent(shareText)}`, '_blank');
+      const encodedText = encodeURIComponent(shareText);
+      const isAndroid = /Android/i.test(navigator.userAgent);
+
+      // بەستەری ڕاستەوخۆی پرۆتۆکۆلی ئەپی تێلێگرام بۆ ئەوەی ڕاستەوخۆ ئەپەکە بکرێتەوە نەک براوسەر
+      const tgAppUrl = `tg://msg_url?url=%20&text=${encodedText}`;
+
+      const a = document.createElement('a');
+      a.href = tgAppUrl;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => a.remove(), 100);
+
+      // ئەگەر ئەپی تێلێگرام نەکراوەتەوە (بۆ نموونە ئەگەر تێلێگرام دانەمەزرابێت)، پەنا دەباتە بەر fallback
+      const start = Date.now();
+      setTimeout(() => {
+        if (!document.hidden && Date.now() - start < 2500) {
+          if (isAndroid) {
+            window.location.href = `intent://msg_url?url=%20&text=${encodedText}#Intent;scheme=tg;package=org.telegram.messenger;S.browser_fallback_url=${encodeURIComponent(`https://t.me/share/url?url=%20&text=${encodedText}`)};end`;
+          } else {
+            window.location.href = `https://t.me/share/url?url=%20&text=${encodedText}`;
+          }
+        }
+      }, 1000);
     });
 
     $('#btn-share-native', body)?.addEventListener('click', async () => {

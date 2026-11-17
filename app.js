@@ -436,6 +436,7 @@ const App = (() => {
       }
     });
     Store.clearSession();
+    try { sessionStorage.clear(); } catch (_) {}
     stopNotifPolling();
     Store.stopPermsPolling();
     if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
