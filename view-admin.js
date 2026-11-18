@@ -1858,7 +1858,7 @@ const AdminView = (() => {
         <div class="admin-header-row" style="margin-bottom:6px">
           <h3 style="font-size:0.96rem"><span class="sec-icon">${UI.icon('users')}</span> بەڕێوەبردنی بەکارهێنەران (خشتەی usersv2)</h3>
           <div style="display:flex;gap:8px">
-            ${CONFIG.GATEWAY_URL ? `<button type="button" class="btn btn-ghost btn-sm" id="adm-migrate-avatars-btn" title="گواستنەوەی وێنە کۆنەکان (base64) بۆ GitHub — لیستەکان خێراتر دەبێت">🌐 وێنەکان بۆ GitHub</button>` : ''}
+            <button type="button" class="btn btn-ghost btn-sm" id="adm-migrate-avatars-btn" title="پاشەکەوتکردنی ڕاستەوخۆی وێنەی بەکارهێنەران لە داتابەیس (Base64)">💾 پاشەکەوتکردنی وێنەکان لە داتابەیس</button>
             <button type="button" class="btn btn-ghost btn-sm" id="adm-toggle-pass">👁️ پشاندانی هەموو پاسۆڕدەکان</button>
             <button type="button" class="btn btn-primary btn-sm" id="admin-add-user-btn">➕ بەکارهێنەری نوێ</button>
           </div>
@@ -1971,27 +1971,36 @@ const AdminView = (() => {
     });
     $('#admin-add-user-btn', wrap).addEventListener('click', () => openUserModal(null, updateUserCardsGrid));
 
-    // گواستنەوەی وێنە کۆنەکان (dataURL) بۆ GitHub repo — لیستی یوسەرەکان خێراتر دەبێت
+    // پاشەکەوتکردنی هەموو وێنەکانی AVATAR_MAP لەناو داتابەیس بە Base64
     const migBtn = $('#adm-migrate-avatars-btn', wrap);
     if (migBtn) migBtn.addEventListener('click', async () => {
       const ok = await UI.confirmDialog(
-        'هەموو وێنە کۆنەکان کە وەک base64 لە داتابەیسەکەدا پاشەکەوتکراون، دەگوازرێنەوە بۆ GitHub repo ەکە و لە داتابەیسەکەدا تەنها ڕێڕەوەکەیان دەمێنێتەوە. بەردەوام دەبیت؟',
-        { okLabel: 'بەڵێ، بگوازەوە', cancelLabel: 'پاشگەزبوونەوە' }
+        'ئایا دەتەوێت وێنەی بەکارهێنەران بە شێوەی Base64 لە داتابەیسدا پاشەکەوت بکەیت تا لە هەموو ئامێرێکدا بە ڕاستەوخۆ دەربکەون؟',
+        { okLabel: 'بەڵێ، پاشەکەوت بکە', cancelLabel: 'پاشگەزبوونەوە' }
       );
       if (!ok) return;
       UI.btnLoading(migBtn, true, '...');
       try {
-        const res = await API.migrateAvatars();
+        let updated = 0;
+        if (typeof AVATAR_MAP !== 'undefined') {
+          for (const u of (state.users || [])) {
+            const av = AVATAR_MAP[String(u.id)];
+            if (av && (!u.avatar_url || !u.avatar_url.startsWith('data:image/'))) {
+              try {
+                await API.Lists.updateUser(u.id, { avatar_url: av });
+                u.avatar_url = av;
+                updated++;
+              } catch (e) {
+                console.warn('Update user avatar failed:', u.username, e);
+              }
+            }
+          }
+        }
         Store.invalidateLists();
-        const failed = (res && res.failed) || [];
-        const firstError = (res && res.firstError) || '';
-        const failedTxt = failed.length
-          ? ` — شکستی هێنا بۆ ${UI.fmtNum(failed.length)} وێنە${firstError ? ` (هۆکار: ${firstError})` : ''}`
-          : '';
-        UI.toast(`${UI.fmtNum(res.migrated || 0)} وێنە گواسترایەوە بۆ GitHub ✓${failedTxt}`, failed.length ? 'warning' : 'success', 8000);
+        UI.toast(`وێنەی ${UI.fmtNum(updated)} بەکارهێنەر لە داتابەیس نوێ کرایەوە ✓`, 'success', 6000);
         updateUserCardsGrid();
       } catch (err) {
-        UI.toast('هەڵە لە گواستنەوەی وێنەکان: ' + err.message, 'error', 8000);
+        UI.toast('هەڵە لە پاشەکەوتکردنی وێنەکان: ' + err.message, 'error', 8000);
       } finally {
         UI.btnLoading(migBtn, false);
       }
@@ -2047,9 +2056,10 @@ const AdminView = (() => {
     const renderPreview = () => {
       const box = $('#mu-avatar-preview', body);
       if (!box) return;
+      const userAv = (typeof resolveAvatar === 'function' ? resolveAvatar(user) : user?.avatar_url) || user?.avatar_url;
       const cur = newAvatar !== undefined
         ? (newAvatar ? { username: user?.username || '', avatar_url: newAvatar } : null)
-        : (user?.avatar_url ? { username: user.username, avatar_url: user.avatar_url } : null);
+        : (userAv ? { username: user?.username || '', avatar_url: userAv } : null);
       box.innerHTML = cur
         ? `<img class="avatar" src="${UI.esc(cur.avatar_url)}" alt="" style="width:64px;height:64px">`
         : `<div class="avatar avatar-fallback" style="width:64px;height:64px;font-size:26px">${UI.esc((user?.username || '؟').trim().charAt(0))}</div>`;
@@ -2118,14 +2128,9 @@ const AdminView = (() => {
                   location: location || null,
                 };
                 if (newAvatar !== undefined) {
-                  if (newAvatar === null) {
-                    patch.avatar_url = null;
-                  } else if (CONFIG.GATEWAY_URL) {
-                    // وێنەکە دەچێتە ناو GitHub repo — لە داتابەیسەکەدا تەنها ڕێڕەوەکە دەمێنێتەوە
-                    const up = await API.uploadAvatar(user.id, newAvatar);
-                    patch.avatar_url = (up && up.avatar_url) ? up.avatar_url : newAvatar;
-                  } else {
-                    patch.avatar_url = newAvatar;
+                  patch.avatar_url = newAvatar || null;
+                  if (typeof AVATAR_MAP !== 'undefined') {
+                    AVATAR_MAP[String(user.id)] = newAvatar || null;
                   }
                 }
                 await API.Lists.updateUser(user.id, patch);
@@ -2140,15 +2145,12 @@ const AdminView = (() => {
                   location: location || null,
                 };
                 if (newAvatar) {
-                  if (CONFIG.GATEWAY_URL) {
-                    // یوسەری نوێ هێشتا ئایدی نییە — سەرەتا فایلەکە بۆ GitHub دەچێت، پاشان ڕێڕەوەکە لەگەڵ ڕیزەکە تۆمار دەکرێت
-                    const up = await API.uploadAvatar('', newAvatar);
-                    row.avatar_url = (up && up.avatar_url) ? up.avatar_url : newAvatar;
-                  } else {
-                    row.avatar_url = newAvatar;
-                  }
+                  row.avatar_url = newAvatar;
                 }
                 const inserted = await API.Lists.insertUser(row);
+                if (inserted?.id && newAvatar && typeof AVATAR_MAP !== 'undefined') {
+                  AVATAR_MAP[String(inserted.id)] = newAvatar;
+                }
                 state.users.unshift(inserted || { id: Date.now(), ...row });
                 UI.toast('بەکارهێنەری نوێ زیادکرا ✓', 'success');
               }

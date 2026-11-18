@@ -741,7 +741,7 @@ const DriverView = (() => {
 
       // وێنە گەورەکە — ئەڤاتاری یوسەرەکەی ئەنجامدەری کردارەکە (لە جیاتی ئایکۆنی ئەپ)
       const me = App.getUser();
-      const userIcon = (me && me.avatar_url) ? me.avatar_url : './icon-192.png';
+      const userIcon = (typeof resolveAvatar === 'function' ? resolveAvatar(me) : me?.avatar_url) || me?.avatar_url || './icon-192.png';
 
       const existing = await reg.getNotifications({ tag: 'active-trip-lockscreen' });
       const current = existing[0];
@@ -1304,28 +1304,32 @@ const DriverView = (() => {
   function formatTripShareText(rec) {
     if (!rec) return '';
     const cargoTitle = CONFIG.CARGO_LABELS[cargoIndex(rec)] || 'بار';
-    const dateStr = rec.record_date || UI.todayStr();
-    const timeStr = rec.record_time || '—';
     const driver = rec.driver || '—';
     const distributor = rec.distributor || '—';
     const delegate = rec.delegate || '—';
     const zone = rec.zone || '—';
     const vehicle = rec.vehicle || '—';
     const weight = rec.cargo_weight ? `${UI.fmtNum(rec.cargo_weight)} کگم` : '—';
-    const pieces = rec.pieces_count ? UI.fmtNum(rec.pieces_count) : '—';
     const receipt = rec.receipt_number ? UI.fmtNum(rec.receipt_number) : '—';
+    const pieces = rec.pieces_count ? UI.fmtNum(rec.pieces_count) : '—';
 
-    return `🚚 *زانیارییەکانی دەرچوون — ${cargoTitle}*
-📅 بەروار: ${dateStr} | کاتی دەرچوون: ${timeStr}
+    return `* ${cargoTitle} *
 
-▫️ سایەق: ${driver}
-▫️ دابەشکار: ${distributor}
-▫️ مەندوب: ${delegate}
-▫️ ناوچە / زۆن: ${zone}
-▫️ ژمارەی سەیارە: ${vehicle}
-▫️ کێشی بار: ${weight}
-▫️ ژمارەی وەسڵ: ${receipt}
-▫️ ژمارەی پارچەکان: ${pieces}`;
+. سایەق: ${driver}
+
+. دابەشکار: ${distributor}
+
+. مەندوب: ${delegate}
+
+. ناوچە: ${zone}
+
+. ژمارەی سەیارە: ${vehicle}
+
+. کێشی بار: ${weight}
+
+. ژمارەی وەسڵ: ${receipt}
+
+. ژمارەی پارچەکان: ${pieces}`;
   }
 
   function openShareTripModal(rec) {
@@ -1364,6 +1368,18 @@ const DriverView = (() => {
       ]
     });
 
+    const triggerShareSheet = () => {
+      if (navigator.share) {
+        navigator.share({
+          text: shareText
+        }).then(() => {
+          close();
+        }).catch(() => {});
+        return true;
+      }
+      return false;
+    };
+
     $('#btn-share-wa', body)?.addEventListener('click', () => {
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
     });
@@ -1372,38 +1388,42 @@ const DriverView = (() => {
       const encodedText = encodeURIComponent(shareText);
       const isAndroid = /Android/i.test(navigator.userAgent);
 
-      // بەستەری ڕاستەوخۆی پرۆتۆکۆلی ئەپی تێلێگرام بۆ ئەوەی ڕاستەوخۆ ئەپەکە بکرێتەوە نەک براوسەر
-      const tgAppUrl = `tg://msg_url?url=%20&text=${encodedText}`;
+      if (isAndroid) {
+        // ناردنی ڕاستەوخۆ بۆ ئەپی تێلێگرام بە Intent ی فەرمی ACTION_SEND:
+        // 1. بەهۆی package=org.telegram.messenger وەک واتسئەپ ڕاستەوخۆ دەچێتە ناو ئەپی تێلێگرام (بێ نیشاندانی ئەپەکانی تر)
+        // 2. بەهۆی action=android.intent.action.SEND لەناو گرووپەکانیش تەواوی بەشەکان (Topics) پشان دەدات بۆ دیاریکردن
+        const fallbackUrl = `https://t.me/share/url?url=%20&text=${encodedText}`;
+        const intentUrl = `intent:#Intent;action=android.intent.action.SEND;type=text/plain;package=org.telegram.messenger;S.android.intent.extra.TEXT=${encodedText};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end;`;
 
-      const a = document.createElement('a');
-      a.href = tgAppUrl;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => a.remove(), 100);
+        const a = document.createElement('a');
+        a.href = intentUrl;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => a.remove(), 250);
 
-      // ئەگەر ئەپی تێلێگرام نەکراوەتەوە (بۆ نموونە ئەگەر تێلێگرام دانەمەزرابێت)، پەنا دەباتە بەر fallback
-      const start = Date.now();
-      setTimeout(() => {
-        if (!document.hidden && Date.now() - start < 2500) {
-          if (isAndroid) {
-            window.location.href = `intent://msg_url?url=%20&text=${encodedText}#Intent;scheme=tg;package=org.telegram.messenger;S.browser_fallback_url=${encodeURIComponent(`https://t.me/share/url?url=%20&text=${encodedText}`)};end`;
-          } else {
-            window.location.href = `https://t.me/share/url?url=%20&text=${encodedText}`;
+        // یەدەگ (Fallback) ئەگەر بە هەر هۆکارێک ئەپەکە دانەمەزرابوو یان نەکرایەوە:
+        setTimeout(() => {
+          if (!document.hidden) {
+            if (navigator.share) {
+              navigator.share({ text: shareText }).catch(() => {});
+            } else {
+              window.open(`https://t.me/share/url?url=%20&text=${encodedText}`, '_blank');
+            }
           }
+        }, 750);
+      } else {
+        // بۆ ئایفۆن و سیستەمەکانی تر
+        if (navigator.share) {
+          navigator.share({ text: shareText }).catch(() => {});
+        } else {
+          window.open(`https://t.me/share/url?url=%20&text=${encodedText}`, '_blank');
         }
-      }, 1000);
+      }
     });
 
-    $('#btn-share-native', body)?.addEventListener('click', async () => {
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: 'زانیاری دەرچوون',
-            text: shareText
-          });
-        } catch (_) {}
-      } else {
-        UI.toast('ئەم ئامێرە یان وێبگەڕە پشتگیری شێرکردنی سیستەم ناکات — دوگمەی تێلێگرام یان واتسئەپ دابگرە', 'info', 4000);
+    $('#btn-share-native', body)?.addEventListener('click', () => {
+      if (!triggerShareSheet()) {
+        UI.toast('ئەم ئامێرە یان وێبگەڕە پشتگیری شێرکردنی سیستەم ناکات — دوگمەی واتسئەپ یان کۆپیکردن بەکاربهێنە', 'info', 4000);
       }
     });
 
