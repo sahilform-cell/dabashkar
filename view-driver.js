@@ -1332,122 +1332,42 @@ const DriverView = (() => {
 . ژمارەی پارچەکان: ${pieces}`;
   }
 
-  function openShareTripModal(rec) {
+  async function openShareTripModal(rec) {
     if (!rec) return;
     const shareText = formatTripShareText(rec);
 
-    const body = document.createElement('div');
-    body.className = 'share-modal-body';
-    body.innerHTML = `
-      <p class="hint" style="margin:0 0 4px;">ئەو ئەپە هەڵبژێرە کە دەتەوێت زانیارییەکانی دەرچوونی بۆ بنێریت:</p>
-      <div class="share-actions-grid">
-        <button type="button" class="btn-share-app whatsapp" id="btn-share-wa">
-          <span style="font-size:1.15rem">🟢</span> واتس ئەپ
-        </button>
-        <button type="button" class="btn-share-app telegram" id="btn-share-tg">
-          <span style="font-size:1.15rem">💬</span> تێلێگرام
-        </button>
-        <button type="button" class="btn-share-app native" id="btn-share-native">
-          <span style="font-size:1.15rem">📤</span> ئەپەکانی تر
-        </button>
-        <button type="button" class="btn-share-app copy" id="btn-share-copy">
-          <span style="font-size:1.15rem">📋</span> کۆپیکردن
-        </button>
-      </div>
-      <div>
-        <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:4px;">دەقی نامەکە:</label>
-        <div class="share-preview-card" id="share-preview-text">${UI.esc(shareText)}</div>
-      </div>
-    `;
-
-    const { close } = UI.openModal({
-      title: '📤 شێرکردنی زانیارییەکانی دەرچوون',
-      body,
-      actions: [
-        { label: 'داخستن', className: 'btn-ghost', onClick: () => close() }
-      ]
-    });
-
-    const triggerShareSheet = () => {
-      if (navigator.share) {
-        navigator.share({
-          text: shareText
-        }).then(() => {
-          close();
-        }).catch(() => {});
-        return true;
-      }
-      return false;
-    };
-
-    $('#btn-share-wa', body)?.addEventListener('click', () => {
-      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
-    });
-
-    $('#btn-share-tg', body)?.addEventListener('click', () => {
-      const encodedText = encodeURIComponent(shareText);
-      const isAndroid = /Android/i.test(navigator.userAgent);
-
-      if (isAndroid) {
-        // ناردنی ڕاستەوخۆ بۆ ئەپی تێلێگرام بە Intent ی فەرمی ACTION_SEND:
-        // 1. بەهۆی package=org.telegram.messenger وەک واتسئەپ ڕاستەوخۆ دەچێتە ناو ئەپی تێلێگرام (بێ نیشاندانی ئەپەکانی تر)
-        // 2. بەهۆی action=android.intent.action.SEND لەناو گرووپەکانیش تەواوی بەشەکان (Topics) پشان دەدات بۆ دیاریکردن
-        const fallbackUrl = `https://t.me/share/url?url=%20&text=${encodedText}`;
-        const intentUrl = `intent:#Intent;action=android.intent.action.SEND;type=text/plain;package=org.telegram.messenger;S.android.intent.extra.TEXT=${encodedText};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end;`;
-
-        const a = document.createElement('a');
-        a.href = intentUrl;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => a.remove(), 250);
-
-        // یەدەگ (Fallback) ئەگەر بە هەر هۆکارێک ئەپەکە دانەمەزرابوو یان نەکرایەوە:
-        setTimeout(() => {
-          if (!document.hidden) {
-            if (navigator.share) {
-              navigator.share({ text: shareText }).catch(() => {});
-            } else {
-              window.open(`https://t.me/share/url?url=%20&text=${encodedText}`, '_blank');
-            }
-          }
-        }, 750);
-      } else {
-        // بۆ ئایفۆن و سیستەمەکانی تر
-        if (navigator.share) {
-          navigator.share({ text: shareText }).catch(() => {});
-        } else {
-          window.open(`https://t.me/share/url?url=%20&text=${encodedText}`, '_blank');
+    // ئەگەر ئامێرەکە پشتگیری Web Share بکات (مۆبایل)، ڕاستەوخۆ پەڕەی فەرمی شێرکردنی مۆبایل دەکرێتەوە
+    // تا بەکارهێنەر بتوانێت ئەپی دڵخوازی خۆی هەڵبژێرێت یان «Always» چالاک بکات تا لەمەودوا ڕاستەوخۆ بیکاتەوە
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: shareText });
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.warn('Share error:', err);
         }
       }
-    });
+      return;
+    }
 
-    $('#btn-share-native', body)?.addEventListener('click', () => {
-      if (!triggerShareSheet()) {
-        UI.toast('ئەم ئامێرە یان وێبگەڕە پشتگیری شێرکردنی سیستەم ناکات — دوگمەی واتسئەپ یان کۆپیکردن بەکاربهێنە', 'info', 4000);
-      }
-    });
-
-    $('#btn-share-copy', body)?.addEventListener('click', () => {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(shareText).then(() => {
-          UI.toast('دەقی نامەکە کۆپی کرا ✓', 'success');
-        }).catch(() => {
-          UI.toast('نەتوانرا کۆپی بکرێت', 'error');
-        });
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = shareText;
-        document.body.appendChild(ta);
-        ta.select();
-        try {
-          document.execCommand('copy');
-          UI.toast('دەقی نامەکە کۆپی کرا ✓', 'success');
-        } catch (_) {
-          UI.toast('نەتوانرا کۆپی بکرێت', 'error');
-        }
-        ta.remove();
-      }
-    });
+    // بۆ کۆمپیوتەر یان ئەو وێبگەڕانەی کە بەشی شێرکردنی سیستەمیان نییە، دەقەکە کۆپی دەکات
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(shareText);
+        UI.toast('دەقی زانیارییەکانی دەرچوون کۆپی کرا ✓', 'success');
+        return;
+      } catch (_) {}
+    }
+    const ta = document.createElement('textarea');
+    ta.value = shareText;
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      UI.toast('دەقی زانیارییەکانی دەرچوون کۆپی کرا ✓', 'success');
+    } catch (_) {
+      UI.toast('نەتوانرا کۆپی بکرێت', 'error');
+    }
+    ta.remove();
   }
 
   /* ---------------- مۆدالی پارەی هێنراوە — دوگمەی جیاوە، دوای تۆمارکردن ون دەبێت ---------------- */
