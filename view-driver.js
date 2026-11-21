@@ -1336,38 +1336,74 @@ const DriverView = (() => {
     if (!rec) return;
     const shareText = formatTripShareText(rec);
 
-    // ئەگەر ئامێرەکە پشتگیری Web Share بکات (مۆبایل)، ڕاستەوخۆ پەڕەی فەرمی شێرکردنی مۆبایل دەکرێتەوە
-    // تا بەکارهێنەر بتوانێت ئەپی دڵخوازی خۆی هەڵبژێرێت یان «Always» چالاک بکات تا لەمەودوا ڕاستەوخۆ بیکاتەوە
-    if (navigator.share) {
-      try {
-        await navigator.share({ text: shareText });
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          console.warn('Share error:', err);
-        }
-      }
-      return;
-    }
-
-    // بۆ کۆمپیوتەر یان ئەو وێبگەڕانەی کە بەشی شێرکردنی سیستەمیان نییە، دەقەکە کۆپی دەکات
+    // ١. ڕاستەوخۆ دەقی زانیارییەکان کۆپی دەکرێت بۆ کلیپبۆرد
+    let copied = false;
     if (navigator.clipboard && navigator.clipboard.writeText) {
       try {
         await navigator.clipboard.writeText(shareText);
-        UI.toast('دەقی زانیارییەکانی دەرچوون کۆپی کرا ✓', 'success');
-        return;
+        copied = true;
       } catch (_) {}
     }
+    if (!copied) {
+      copied = fallbackCopy(shareText);
+    }
+    UI.toast('دەقەکە کۆپی کرا و تێلێگرام دەکرێتەوە ✓', 'success', 3500);
+
+    // ٢. کردنەوەی ڕاستەوخۆی شوێنی دیاریکراو لە تێلێگرام:
+    // https://web.telegram.org/a/#-1002127065540_2
+    const tgAppUrl = 'tg://privatepost?channel=2127065540&post=2';
+    const tgWebUrl = 'https://web.telegram.org/a/#-1002127065540_2';
+    const tgTmeUrl = 'https://t.me/c/2127065540/2';
+
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (isAndroid) {
+      // لە ئەندرۆید: کردنەوەی ڕاستەوخۆی ئەپی تێلێگرام بۆ ئەو گرووپ و بەشە
+      const intentUrl = `intent://privatepost?channel=2127065540&post=2#Intent;scheme=tg;package=org.telegram.messenger;S.browser_fallback_url=${encodeURIComponent(tgTmeUrl)};end;`;
+      const a = document.createElement('a');
+      a.href = intentUrl;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => a.remove(), 300);
+    } else if (isIOS) {
+      // لە ئایفۆن: کردنەوەی ڕاستەوخۆی ئەپی تێلێگرام بە پرۆتۆکۆڵی tg://
+      const a = document.createElement('a');
+      a.href = tgAppUrl;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => a.remove(), 300);
+    } else {
+      // لە کۆمپیوتەر / دێسکتۆپ:
+      // سەرەتا بەرنامەی تێلێگرامی دێسکتۆپ ڕاستەوخۆ دەکاتەوە بە tg://،
+      // ئەگەر بەرنامەی دێسکتۆپ نەبوو، دەچێتە بەستەری وێبی تێلێگرام
+      const a = document.createElement('a');
+      a.href = tgAppUrl;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => a.remove(), 300);
+
+      setTimeout(() => {
+        if (!document.hidden) {
+          window.open(tgWebUrl, '_blank');
+        }
+      }, 1500);
+    }
+  }
+
+  function fallbackCopy(text) {
     const ta = document.createElement('textarea');
-    ta.value = shareText;
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
     document.body.appendChild(ta);
     ta.select();
+    let ok = false;
     try {
-      document.execCommand('copy');
-      UI.toast('دەقی زانیارییەکانی دەرچوون کۆپی کرا ✓', 'success');
-    } catch (_) {
-      UI.toast('نەتوانرا کۆپی بکرێت', 'error');
-    }
+      ok = document.execCommand('copy');
+    } catch (_) {}
     ta.remove();
+    return ok;
   }
 
   /* ---------------- مۆدالی پارەی هێنراوە — دوگمەی جیاوە، دوای تۆمارکردن ون دەبێت ---------------- */
